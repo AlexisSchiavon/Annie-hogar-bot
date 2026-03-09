@@ -11,8 +11,9 @@ from sqlalchemy import (
     String,
     Text,
     Time,
+    TIMESTAMP,
 )
-from sqlalchemy.dialects.postgresql import JSONB, TIMESTAMPTZ
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 
@@ -32,13 +33,12 @@ class Lead(Base):
     qualification: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
     human_takeover: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     created_at: Mapped[datetime] = mapped_column(
-        TIMESTAMPTZ, nullable=False, server_default=func.now()
+        TIMESTAMP(timezone=True), nullable=False, server_default=func.now()
     )
     updated_at: Mapped[datetime] = mapped_column(
-        TIMESTAMPTZ, nullable=False, server_default=func.now(), onupdate=func.now()
+        TIMESTAMP(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now()
     )
 
-    # Relaciones
     conversations: Mapped[list["Conversation"]] = relationship(
         "Conversation", back_populates="lead", cascade="all, delete-orphan"
     )
@@ -60,14 +60,13 @@ class Conversation(Base):
     lead_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("leads.id", ondelete="CASCADE"), nullable=False
     )
-    role: Mapped[str] = mapped_column(String(10), nullable=False)  # user|assistant|tool
+    role: Mapped[str] = mapped_column(String(10), nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False)
     metadata: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
     created_at: Mapped[datetime] = mapped_column(
-        TIMESTAMPTZ, nullable=False, server_default=func.now()
+        TIMESTAMP(timezone=True), nullable=False, server_default=func.now()
     )
 
-    # Relación inversa
     lead: Mapped["Lead"] = relationship("Lead", back_populates="conversations")
 
     def __repr__(self) -> str:
@@ -87,7 +86,7 @@ class Appointment(Base):
     product_interest: Mapped[str | None] = mapped_column(String(200), nullable=True)
     reminder_sent: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     created_at: Mapped[datetime] = mapped_column(
-        TIMESTAMPTZ, nullable=False, server_default=func.now()
+        TIMESTAMP(timezone=True), nullable=False, server_default=func.now()
     )
 
     lead: Mapped["Lead"] = relationship("Lead", back_populates="appointments")
@@ -105,7 +104,7 @@ class FollowUp(Base):
     )
     attempt_number: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     sent_at: Mapped[datetime] = mapped_column(
-        TIMESTAMPTZ, nullable=False, server_default=func.now()
+        TIMESTAMP(timezone=True), nullable=False, server_default=func.now()
     )
     responded: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 
