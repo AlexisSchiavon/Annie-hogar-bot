@@ -1,0 +1,33 @@
+# Web framework
+fastapi==0.115.5
+uvicorn[standard]==0.32.1
+
+# Database async
+sqlalchemy[asyncio]==2.0.36
+asyncpg==0.30.0
+alembic==1.14.0
+
+# Redis async
+redis[hiredis]==5.2.1
+
+# HTTP async
+httpx==0.28.0
+
+# OpenAI
+openai==1.57.2
+
+# Google
+gspread==6.1.4
+google-auth==2.37.0
+
+# Settings & validation
+pydantic==2.10.3
+pydantic-settings==2.6.1
+
+# Logging
+structlog==24.4.0
+
+# Utilities
+python-dotenv==1.0.1
+tenacity==9.0.0
+pytz==2024.2

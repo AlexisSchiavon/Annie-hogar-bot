@@ -1,0 +1,108 @@
+services:
+  fastapi:
+    build: .
+    container_name: annie-fastapi
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+      - REDIS_URL=${REDIS_URL}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - OPENAI_MODEL=${OPENAI_MODEL}
+      - GOOGLE_SHEETS_ID=${GOOGLE_SHEETS_ID}
+      - GOOGLE_DRIVE_FOLDER_ID=${GOOGLE_DRIVE_FOLDER_ID}
+      - GOOGLE_SERVICE_ACCOUNT_JSON=${GOOGLE_SERVICE_ACCOUNT_JSON}
+      - MANYCHAT_API_KEY=${MANYCHAT_API_KEY}
+      - MANYCHAT_FLOW_NS=${MANYCHAT_FLOW_NS}
+      - JAVIER_PHONE=${JAVIER_PHONE}
+      - BOT_NAME=${BOT_NAME}
+      - STORE_ADDRESS=${STORE_ADDRESS}
+      - STORE_HOURS=${STORE_HOURS}
+      - API_SECRET_KEY=${API_SECRET_KEY}
+      - N8N_WEBHOOK_URL=${N8N_WEBHOOK_URL}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - annie-net
+    volumes:
+      - ./app:/app/app
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: annie-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-annie}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-annie_pass}
+      POSTGRES_DB: ${POSTGRES_DB:-annie}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./sql/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-annie} -d ${POSTGRES_DB:-annie}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - annie-net
+
+  redis:
+    image: redis:7-alpine
+    container_name: annie-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - annie-net
+
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: annie-n8n
+    restart: unless-stopped
+    ports:
+      - "5678:5678"
+    environment:
+      - N8N_HOST=0.0.0.0
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=http
+      - WEBHOOK_URL=${N8N_WEBHOOK_URL:-http://localhost:5678}
+      - DB_TYPE=postgresdb
+      - DB_POSTGRESDB_HOST=postgres
+      - DB_POSTGRESDB_PORT=5432
+      - DB_POSTGRESDB_DATABASE=${POSTGRES_DB:-annie}
+      - DB_POSTGRESDB_USER=${POSTGRES_USER:-annie}
+      - DB_POSTGRESDB_PASSWORD=${POSTGRES_PASSWORD:-annie_pass}
+      - N8N_BASIC_AUTH_ACTIVE=true
+      - N8N_BASIC_AUTH_USER=${N8N_BASIC_AUTH_USER:-admin}
+      - N8N_BASIC_AUTH_PASSWORD=${N8N_BASIC_AUTH_PASSWORD:-admin_pass}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - n8n_data:/home/node/.n8n
+      - ./n8n:/home/node/.n8n/workflows
+    networks:
+      - annie-net
+
+volumes:
+  postgres_data:
+  redis_data:
+  n8n_data:
+
+networks:
+  annie-net:
+    driver: bridge

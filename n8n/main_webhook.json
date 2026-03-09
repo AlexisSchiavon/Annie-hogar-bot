@@ -1,0 +1,240 @@
+{
+  "name": "WF1 - Main Webhook (ManyChat → Bot → ManyChat)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "manychat-chat",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "wf1-0001-0000-0000-000000000001",
+      "name": "Webhook ManyChat",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [0, 0],
+      "webhookId": "annie-manychat-chat"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://fastapi:8000/chat",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-API-Key",
+              "value": "={{ $env.API_SECRET_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  phone: ($json.phone || $json.id || '').toString().replace(/\\+/g, ''),\n  name: (($json.first_name || '') + ' ' + ($json.last_name || '')).trim() || null,\n  message: $json.last_input_text || '',\n  timestamp: new Date().toISOString()\n}) }}",
+        "options": {}
+      },
+      "id": "wf1-0001-0000-0000-000000000002",
+      "name": "POST /chat",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [260, 0]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({\n  version: 'v2',\n  content: {\n    messages: [{\n      type: 'text',\n      text: $json.response_text || 'Un momento por favor.'\n    }],\n    actions: [],\n    quick_replies: []\n  }\n}) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "wf1-0001-0000-0000-000000000003",
+      "name": "Respond ManyChat",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [520, 0]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "cond-has-actions",
+              "leftValue": "={{ ($json.actions || []).length }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "wf1-0001-0000-0000-000000000004",
+      "name": "Tiene acciones?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [780, 0]
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "actions",
+        "options": {}
+      },
+      "id": "wf1-0001-0000-0000-000000000005",
+      "name": "Split Acciones",
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [1040, -120]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "cond-action-type",
+              "leftValue": "={{ $json.type }}",
+              "rightValue": "notify_javier",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "wf1-0001-0000-0000-000000000006",
+      "name": "Es notify_javier?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [1300, -120]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.manychat.com/fb/subscriber/findByPhone",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.MANYCHAT_API_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ phone: '+' + ($json.data.javier_phone || $json.data.recipient_phone || $env.JAVIER_PHONE) }) }}",
+        "options": {}
+      },
+      "id": "wf1-0001-0000-0000-000000000007",
+      "name": "ManyChat: Buscar Javier",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1560, -240]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.manychat.com/fb/sending/sendContent",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.MANYCHAT_API_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  subscriber_id: $json.data.id,\n  data: {\n    version: 'v2',\n    content: {\n      messages: [{\n        type: 'text',\n        text: $('Es notify_javier?').item.json.data.message\n          || ('🔔 ' + $('Es notify_javier?').item.json.data.event + '\\n' + JSON.stringify($('Es notify_javier?').item.json.data))\n      }]\n    }\n  }\n}) }}",
+        "options": {}
+      },
+      "id": "wf1-0001-0000-0000-000000000008",
+      "name": "ManyChat: Enviar a Javier",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1820, -240]
+    },
+    {
+      "parameters": {},
+      "id": "wf1-0001-0000-0000-000000000009",
+      "name": "Acción desconocida",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [1560, 0]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook ManyChat": {
+      "main": [
+        [{ "node": "POST /chat", "type": "main", "index": 0 }]
+      ]
+    },
+    "POST /chat": {
+      "main": [
+        [{ "node": "Respond ManyChat", "type": "main", "index": 0 }]
+      ]
+    },
+    "Respond ManyChat": {
+      "main": [
+        [{ "node": "Tiene acciones?", "type": "main", "index": 0 }]
+      ]
+    },
+    "Tiene acciones?": {
+      "main": [
+        [{ "node": "Split Acciones", "type": "main", "index": 0 }],
+        []
+      ]
+    },
+    "Split Acciones": {
+      "main": [
+        [{ "node": "Es notify_javier?", "type": "main", "index": 0 }]
+      ]
+    },
+    "Es notify_javier?": {
+      "main": [
+        [{ "node": "ManyChat: Buscar Javier", "type": "main", "index": 0 }],
+        [{ "node": "Acción desconocida", "type": "main", "index": 0 }]
+      ]
+    },
+    "ManyChat: Buscar Javier": {
+      "main": [
+        [{ "node": "ManyChat: Enviar a Javier", "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": ""
+  },
+  "versionId": "annie-wf-001",
+  "id": "annie-wf-001",
+  "tags": [{ "name": "annie-hogar" }]
+}

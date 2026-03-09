@@ -1,0 +1,220 @@
+{
+  "name": "WF2 - Cron Recordatorios de Citas (cada hora)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 1
+            }
+          ]
+        }
+      },
+      "id": "wf2-0002-0000-0000-000000000001",
+      "name": "Cada 1 hora",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [0, 0]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://fastapi:8000/reminders/check",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-API-Key",
+              "value": "={{ $env.API_SECRET_KEY }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "wf2-0002-0000-0000-000000000002",
+      "name": "POST /reminders/check",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [260, 0]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "cond-has-reminders",
+              "leftValue": "={{ $json.count }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "wf2-0002-0000-0000-000000000003",
+      "name": "Hay recordatorios?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [520, 0]
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "reminders",
+        "options": {}
+      },
+      "id": "wf2-0002-0000-0000-000000000004",
+      "name": "Split Recordatorios",
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [780, -120]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.manychat.com/fb/subscriber/findByPhone",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.MANYCHAT_API_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ phone: '+' + $json.phone }) }}",
+        "options": {}
+      },
+      "id": "wf2-0002-0000-0000-000000000005",
+      "name": "ManyChat: Buscar Suscriptor",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1040, -120]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "cond-found",
+              "leftValue": "={{ $json.status }}",
+              "rightValue": "success",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "wf2-0002-0000-0000-000000000006",
+      "name": "Suscriptor encontrado?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [1300, -120]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.manychat.com/fb/sending/sendContent",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.MANYCHAT_API_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  subscriber_id: $json.data.id,\n  data: {\n    version: 'v2',\n    content: {\n      messages: [{\n        type: 'text',\n        text: $('Split Recordatorios').item.json.message\n      }]\n    }\n  }\n}) }}",
+        "options": {}
+      },
+      "id": "wf2-0002-0000-0000-000000000007",
+      "name": "ManyChat: Enviar Recordatorio",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1560, -240]
+    },
+    {
+      "parameters": {},
+      "id": "wf2-0002-0000-0000-000000000008",
+      "name": "No encontrado (ignorar)",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [1560, 0]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Cada 1 hora": {
+      "main": [
+        [{ "node": "POST /reminders/check", "type": "main", "index": 0 }]
+      ]
+    },
+    "POST /reminders/check": {
+      "main": [
+        [{ "node": "Hay recordatorios?", "type": "main", "index": 0 }]
+      ]
+    },
+    "Hay recordatorios?": {
+      "main": [
+        [{ "node": "Split Recordatorios", "type": "main", "index": 0 }],
+        []
+      ]
+    },
+    "Split Recordatorios": {
+      "main": [
+        [{ "node": "ManyChat: Buscar Suscriptor", "type": "main", "index": 0 }]
+      ]
+    },
+    "ManyChat: Buscar Suscriptor": {
+      "main": [
+        [{ "node": "Suscriptor encontrado?", "type": "main", "index": 0 }]
+      ]
+    },
+    "Suscriptor encontrado?": {
+      "main": [
+        [{ "node": "ManyChat: Enviar Recordatorio", "type": "main", "index": 0 }],
+        [{ "node": "No encontrado (ignorar)", "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "versionId": "annie-wf-002",
+  "id": "annie-wf-002",
+  "tags": [{ "name": "annie-hogar" }]
+}

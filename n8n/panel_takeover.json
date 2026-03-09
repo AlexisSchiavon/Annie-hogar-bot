@@ -1,0 +1,100 @@
+{
+  "name": "WF6 - Panel Takeover (Tomar / Liberar Chat)",
+  "nodes": [
+    {
+      "parameters": {
+        "formTitle": "Tomar / Liberar Chat — Annie Hogar Bot",
+        "formDescription": "Activa o desactiva el modo humano para un número de WhatsApp. Mientras esté activo, el bot no responde.",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Teléfono (sin + ni espacios)",
+              "fieldType": "text",
+              "requiredField": true,
+              "placeholder": "573001234567"
+            },
+            {
+              "fieldLabel": "Acción",
+              "fieldType": "dropdown",
+              "requiredField": true,
+              "fieldOptions": {
+                "values": [
+                  { "option": "Activar takeover (tomar control)" },
+                  { "option": "Desactivar takeover (restaurar bot)" }
+                ]
+              }
+            }
+          ]
+        },
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "wf6-0006-0000-0000-000000000001",
+      "name": "Form: Takeover",
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.2,
+      "position": [0, 0],
+      "webhookId": "annie-panel-takeover"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://fastapi:8000/chat/takeover",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-API-Key",
+              "value": "={{ $env.API_SECRET_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  phone: $json['Teléfono (sin + ni espacios)'].replace(/\\D/g, ''),\n  active: $json['Acción'].includes('Activar')\n}) }}",
+        "options": {}
+      },
+      "id": "wf6-0006-0000-0000-000000000002",
+      "name": "POST /chat/takeover",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [260, 0]
+    },
+    {
+      "parameters": {
+        "respondWith": "html",
+        "responseBody": "=<html>\n<head>\n  <title>Takeover — Annie Hogar</title>\n  <meta charset=\"utf-8\">\n  <style>\n    body { font-family: sans-serif; max-width: 600px; margin: 60px auto; text-align: center; }\n    .card { background: #f9f9f9; border-radius: 12px; padding: 32px; box-shadow: 0 2px 8px rgba(0,0,0,.1); }\n    h1 { color: #2d5016; }\n    .status { font-size: 1.4em; font-weight: bold; margin: 16px 0; }\n    .takeover { color: #c0392b; }\n    .bot { color: #27ae60; }\n    a { color: #2d5016; }\n  </style>\n</head>\n<body>\n  <div class=\"card\">\n    <h1>🤖 Annie Hogar Bot</h1>\n    <p>Teléfono: <strong>{{ $json.phone }}</strong></p>\n    <p class=\"status {{ $json.status === 'takeover_active' ? 'takeover' : 'bot' }}\">\n      {{ $json.status === 'takeover_active' ? '🙋 Takeover ACTIVO — Bot detenido' : '✅ Bot RESTAURADO — Bot responde normalmente' }}\n    </p>\n    <p><a href=\"javascript:history.back()\">← Volver al panel</a></p>\n  </div>\n</body>\n</html>",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "wf6-0006-0000-0000-000000000003",
+      "name": "Mostrar Estado Takeover",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [520, 0]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Form: Takeover": {
+      "main": [
+        [{ "node": "POST /chat/takeover", "type": "main", "index": 0 }]
+      ]
+    },
+    "POST /chat/takeover": {
+      "main": [
+        [{ "node": "Mostrar Estado Takeover", "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "versionId": "annie-wf-006",
+  "id": "annie-wf-006",
+  "tags": [{ "name": "annie-hogar" }]
+}

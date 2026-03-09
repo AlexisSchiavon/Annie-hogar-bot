@@ -1,0 +1,298 @@
+{
+  "name": "WF5 - Panel de Control (Catálogo / Estado / Resumen)",
+  "nodes": [
+    {
+      "parameters": {
+        "formTitle": "Panel de Control — Annie Hogar Bot",
+        "formDescription": "Ejecuta acciones administrativas del bot directamente desde n8n.",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Acción",
+              "fieldType": "dropdown",
+              "requiredField": true,
+              "fieldOptions": {
+                "values": [
+                  { "option": "Actualizar catálogo" },
+                  { "option": "Ver estado del sistema" },
+                  { "option": "Generar resumen ahora" }
+                ]
+              }
+            }
+          ]
+        },
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "wf5-0005-0000-0000-000000000001",
+      "name": "Form: Panel Control",
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.2,
+      "position": [0, 0],
+      "webhookId": "annie-panel-control"
+    },
+    {
+      "parameters": {
+        "mode": "rules",
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": { "caseSensitive": false, "leftValue": "", "typeValidation": "loose" },
+                "conditions": [
+                  {
+                    "id": "rule-catalog",
+                    "leftValue": "={{ $json['Acción'] }}",
+                    "rightValue": "Actualizar catálogo",
+                    "operator": { "type": "string", "operation": "equals" }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Catálogo"
+            },
+            {
+              "conditions": {
+                "options": { "caseSensitive": false, "leftValue": "", "typeValidation": "loose" },
+                "conditions": [
+                  {
+                    "id": "rule-health",
+                    "leftValue": "={{ $json['Acción'] }}",
+                    "rightValue": "Ver estado del sistema",
+                    "operator": { "type": "string", "operation": "equals" }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Estado"
+            },
+            {
+              "conditions": {
+                "options": { "caseSensitive": false, "leftValue": "", "typeValidation": "loose" },
+                "conditions": [
+                  {
+                    "id": "rule-summary",
+                    "leftValue": "={{ $json['Acción'] }}",
+                    "rightValue": "Generar resumen ahora",
+                    "operator": { "type": "string", "operation": "equals" }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Resumen"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "wf5-0005-0000-0000-000000000002",
+      "name": "Switch Acción",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.1,
+      "position": [260, 0]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://fastapi:8000/catalog/refresh",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "X-API-Key", "value": "={{ $env.API_SECRET_KEY }}" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "wf5-0005-0000-0000-000000000003",
+      "name": "POST /catalog/refresh",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [520, -200]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "http://fastapi:8000/health",
+        "options": {}
+      },
+      "id": "wf5-0005-0000-0000-000000000004",
+      "name": "GET /health",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [520, 0]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://fastapi:8000/summary/daily",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "X-API-Key", "value": "={{ $env.API_SECRET_KEY }}" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "wf5-0005-0000-0000-000000000005",
+      "name": "POST /summary/daily",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [520, 200]
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineAll",
+        "options": {}
+      },
+      "id": "wf5-0005-0000-0000-000000000006",
+      "name": "Merge Resultado",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [780, 0]
+    },
+    {
+      "parameters": {
+        "respondWith": "html",
+        "responseBody": "=<html>\n<head>\n  <title>Panel Annie Hogar</title>\n  <meta charset=\"utf-8\">\n  <style>\n    body { font-family: sans-serif; max-width: 700px; margin: 40px auto; padding: 0 20px; }\n    h1 { color: #2d5016; }\n    pre { background: #f4f4f4; padding: 16px; border-radius: 8px; overflow-x: auto; white-space: pre-wrap; }\n    .ok { color: green; } .err { color: red; }\n  </style>\n</head>\n<body>\n  <h1>✅ Acción ejecutada — Annie Hogar Bot</h1>\n  <p><strong>Resultado:</strong></p>\n  <pre>{{ JSON.stringify($json, null, 2) }}</pre>\n  <p><a href=\"javascript:history.back()\">← Volver al panel</a></p>\n</body>\n</html>",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "wf5-0005-0000-0000-000000000007",
+      "name": "Mostrar Resultado",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1040, 0]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "notify-javier",
+        "responseMode": "onReceived",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "wf5-0005-0000-0000-000000000008",
+      "name": "Webhook notify-javier (FastAPI)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [0, 480],
+      "webhookId": "annie-notify-javier"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.manychat.com/fb/subscriber/findByPhone",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.MANYCHAT_API_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ phone: '+' + ($json.recipient_phone || $env.JAVIER_PHONE) }) }}",
+        "options": {}
+      },
+      "id": "wf5-0005-0000-0000-000000000009",
+      "name": "ManyChat: Buscar Destinatario",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [260, 480]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.manychat.com/fb/sending/sendContent",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.MANYCHAT_API_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  subscriber_id: $json.data.id,\n  data: {\n    version: 'v2',\n    content: {\n      messages: [{\n        type: 'text',\n        text: $('Webhook notify-javier (FastAPI)').item.json.message\n      }]\n    }\n  }\n}) }}",
+        "options": {}
+      },
+      "id": "wf5-0005-0000-0000-000000000010",
+      "name": "ManyChat: Despachar Notificación",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [520, 480]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Form: Panel Control": {
+      "main": [
+        [{ "node": "Switch Acción", "type": "main", "index": 0 }]
+      ]
+    },
+    "Switch Acción": {
+      "main": [
+        [{ "node": "POST /catalog/refresh", "type": "main", "index": 0 }],
+        [{ "node": "GET /health", "type": "main", "index": 0 }],
+        [{ "node": "POST /summary/daily", "type": "main", "index": 0 }]
+      ]
+    },
+    "POST /catalog/refresh": {
+      "main": [
+        [{ "node": "Merge Resultado", "type": "main", "index": 0 }]
+      ]
+    },
+    "GET /health": {
+      "main": [
+        [{ "node": "Merge Resultado", "type": "main", "index": 1 }]
+      ]
+    },
+    "POST /summary/daily": {
+      "main": [
+        [{ "node": "Merge Resultado", "type": "main", "index": 2 }]
+      ]
+    },
+    "Merge Resultado": {
+      "main": [
+        [{ "node": "Mostrar Resultado", "type": "main", "index": 0 }]
+      ]
+    },
+    "Webhook notify-javier (FastAPI)": {
+      "main": [
+        [{ "node": "ManyChat: Buscar Destinatario", "type": "main", "index": 0 }]
+      ]
+    },
+    "ManyChat: Buscar Destinatario": {
+      "main": [
+        [{ "node": "ManyChat: Despachar Notificación", "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "versionId": "annie-wf-005",
+  "id": "annie-wf-005",
+  "tags": [{ "name": "annie-hogar" }]
+}

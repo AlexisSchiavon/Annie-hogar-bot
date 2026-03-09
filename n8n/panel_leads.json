@@ -1,0 +1,108 @@
+{
+  "name": "WF7 - Panel Leads Recientes",
+  "nodes": [
+    {
+      "parameters": {
+        "formTitle": "Ver Leads Recientes — Annie Hogar Bot",
+        "formDescription": "Consulta los últimos leads registrados en el sistema.",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Cantidad de leads a mostrar",
+              "fieldType": "dropdown",
+              "requiredField": true,
+              "fieldOptions": {
+                "values": [
+                  { "option": "10" },
+                  { "option": "20" },
+                  { "option": "50" }
+                ]
+              }
+            },
+            {
+              "fieldLabel": "Filtrar por estado (opcional)",
+              "fieldType": "dropdown",
+              "requiredField": false,
+              "fieldOptions": {
+                "values": [
+                  { "option": "Todos" },
+                  { "option": "new" },
+                  { "option": "contacted" },
+                  { "option": "qualified" },
+                  { "option": "appointment_set" },
+                  { "option": "closed" },
+                  { "option": "lost" }
+                ]
+              }
+            }
+          ]
+        },
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "wf7-0007-0000-0000-000000000001",
+      "name": "Form: Ver Leads",
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.2,
+      "position": [0, 0],
+      "webhookId": "annie-panel-leads"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=http://fastapi:8000/leads/recent?limit={{ $json['Cantidad de leads a mostrar'] || 20 }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-API-Key",
+              "value": "={{ $env.API_SECRET_KEY }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "wf7-0007-0000-0000-000000000002",
+      "name": "GET /leads/recent",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [260, 0]
+    },
+    {
+      "parameters": {
+        "respondWith": "html",
+        "responseBody": "=<html>\n<head>\n  <title>Leads — Annie Hogar</title>\n  <meta charset=\"utf-8\">\n  <style>\n    body { font-family: sans-serif; max-width: 960px; margin: 30px auto; padding: 0 16px; }\n    h1 { color: #2d5016; }\n    .meta { color: #555; margin-bottom: 16px; }\n    table { width: 100%; border-collapse: collapse; font-size: 0.9em; }\n    th { background: #2d5016; color: white; padding: 10px 12px; text-align: left; }\n    td { padding: 9px 12px; border-bottom: 1px solid #e0e0e0; }\n    tr:hover td { background: #f5f9f0; }\n    .badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 0.8em; font-weight: bold; }\n    .new { background: #d4edda; color: #155724; }\n    .contacted { background: #cce5ff; color: #004085; }\n    .qualified { background: #fff3cd; color: #856404; }\n    .appointment_set { background: #f8d7da; color: #721c24; }\n    .closed { background: #c3e6cb; color: #155724; }\n    .lost { background: #f1f1f1; color: #555; }\n    a { color: #2d5016; }\n  </style>\n</head>\n<body>\n  <h1>👥 Leads Recientes — Annie Hogar Bot</h1>\n  <p class=\"meta\">Total mostrados: <strong>{{ $json.count }}</strong> &nbsp;|&nbsp; <a href=\"javascript:history.back()\">← Nueva consulta</a></p>\n  <table>\n    <thead>\n      <tr>\n        <th>#</th>\n        <th>Teléfono</th>\n        <th>Nombre</th>\n        <th>Estado</th>\n        <th>Interés</th>\n        <th>Presupuesto</th>\n        <th>Takeover</th>\n        <th>Creado</th>\n      </tr>\n    </thead>\n    <tbody>\n      {{ $json.leads.map((l, i) => `\n        <tr>\n          <td>${i + 1}</td>\n          <td><a href=\"https://wa.me/${l.phone}\" target=\"_blank\">${l.phone}</a></td>\n          <td>${l.name || '<em style=\"color:#aaa\">Sin nombre</em>'}</td>\n          <td><span class=\"badge ${l.status}\">${l.status}</span></td>\n          <td>${l.interest || '—'}</td>\n          <td>${l.budget_range || '—'}</td>\n          <td>${l.human_takeover ? '🙋 Activo' : '🤖'}</td>\n          <td style=\"white-space:nowrap\">${new Date(l.created_at).toLocaleString('es-CO', {timeZone:'America/Bogota'})}</td>\n        </tr>\n      `).join('') }}\n    </tbody>\n  </table>\n</body>\n</html>",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "wf7-0007-0000-0000-000000000003",
+      "name": "Mostrar Tabla de Leads",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [520, 0]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Form: Ver Leads": {
+      "main": [
+        [{ "node": "GET /leads/recent", "type": "main", "index": 0 }]
+      ]
+    },
+    "GET /leads/recent": {
+      "main": [
+        [{ "node": "Mostrar Tabla de Leads", "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "versionId": "annie-wf-007",
+  "id": "annie-wf-007",
+  "tags": [{ "name": "annie-hogar" }]
+}

@@ -1,0 +1,126 @@
+{
+  "name": "WF4 - Cron Resumen Diario (8pm Colombia = 1am UTC)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 1 * * *"
+            }
+          ]
+        }
+      },
+      "id": "wf4-0004-0000-0000-000000000001",
+      "name": "Diario 1am UTC (8pm Colombia)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [0, 0]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://fastapi:8000/summary/daily",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-API-Key",
+              "value": "={{ $env.API_SECRET_KEY }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "wf4-0004-0000-0000-000000000002",
+      "name": "POST /summary/daily",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [260, 0]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.manychat.com/fb/subscriber/findByPhone",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.MANYCHAT_API_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ phone: '+' + $env.JAVIER_PHONE }) }}",
+        "options": {}
+      },
+      "id": "wf4-0004-0000-0000-000000000003",
+      "name": "ManyChat: Buscar Javier",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [520, 0]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.manychat.com/fb/sending/sendContent",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.MANYCHAT_API_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  subscriber_id: $json.data.id,\n  data: {\n    version: 'v2',\n    content: {\n      messages: [{\n        type: 'text',\n        text: $('POST /summary/daily').item.json.summary_text\n      }]\n    }\n  }\n}) }}",
+        "options": {}
+      },
+      "id": "wf4-0004-0000-0000-000000000004",
+      "name": "ManyChat: Enviar Resumen a Javier",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [780, 0]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Diario 1am UTC (8pm Colombia)": {
+      "main": [
+        [{ "node": "POST /summary/daily", "type": "main", "index": 0 }]
+      ]
+    },
+    "POST /summary/daily": {
+      "main": [
+        [{ "node": "ManyChat: Buscar Javier", "type": "main", "index": 0 }]
+      ]
+    },
+    "ManyChat: Buscar Javier": {
+      "main": [
+        [{ "node": "ManyChat: Enviar Resumen a Javier", "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "versionId": "annie-wf-004",
+  "id": "annie-wf-004",
+  "tags": [{ "name": "annie-hogar" }]
+}
