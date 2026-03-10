@@ -113,7 +113,9 @@ class ConversationService:
 
             if choice.finish_reason == "tool_calls":
                 tool_calls = choice.message.tool_calls or []
-                current_messages.append(choice.message.model_dump(exclude_none=True))
+                assistant_tool_msg = choice.message.model_dump(exclude_none=True)
+                current_messages.append(assistant_tool_msg)
+                tool_messages.append(assistant_tool_msg)  # necesario para que el historial sea válido
 
                 for tc in tool_calls:
                     import json
@@ -149,7 +151,11 @@ class ConversationService:
 
     def _truncate_history(self, history: list[dict], max_turns: int = 20) -> list[dict]:
         """Mantiene solo los últimos N turnos para no saturar el contexto."""
-        return history[-max_turns * 2:]
+        truncated = history[-max_turns * 2:]
+        # Evitar que el historial empiece con mensajes 'tool' huérfanos (sin assistant tool_calls previo)
+        while truncated and truncated[0].get("role") != "user":
+            truncated = truncated[1:]
+        return truncated
 
     async def _upsert_lead(self, phone: str, name: str | None) -> dict:
         from sqlalchemy import select
