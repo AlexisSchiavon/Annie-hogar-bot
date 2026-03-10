@@ -86,6 +86,7 @@ class ConversationService:
         lead: dict,
         phone: str,
     ) -> tuple[str, list[ChatAction], list[dict]]:
+        import json
         from app.tools.definitions import get_tool_definitions
         from app.tools.executor import execute_tool
 
@@ -113,12 +114,13 @@ class ConversationService:
 
             if choice.finish_reason == "tool_calls":
                 tool_calls = choice.message.tool_calls or []
+
+                # Primero el assistant con tool_calls — los tool results deben ir inmediatamente después
                 assistant_tool_msg = choice.message.model_dump(exclude_none=True)
                 current_messages.append(assistant_tool_msg)
-                tool_messages.append(assistant_tool_msg)  # necesario para que el historial sea válido
+                tool_messages.append(assistant_tool_msg)
 
                 for tc in tool_calls:
-                    import json
                     tool_result, action = await execute_tool(
                         tc.function.name,
                         json.loads(tc.function.arguments),

@@ -72,14 +72,54 @@ class CatalogService:
                 logger.warning("catalog_row_parse_error", row=row, error=str(exc))
         return products
 
+    # Sinónimos para términos comunes en el mercado colombiano
+    _SYNONYMS: dict[str, list[str]] = {
+        "matrimonio": ["doble", "queen", "king", "2 plazas"],
+        "doble": ["matrimonio", "queen", "king"],
+        "queen": ["doble", "matrimonio"],
+        "king": ["doble", "matrimonio", "extra grande"],
+        "sencillo": ["individual", "twin", "1 plaza"],
+        "individual": ["sencillo", "twin"],
+        "twin": ["sencillo", "individual"],
+        "colchon": ["colchón"],
+        "colchón": ["colchon"],
+        "sofa": ["sofá", "sala"],
+        "sofá": ["sofa", "sala"],
+        "sala": ["sofá", "sofa", "living"],
+    }
+
     async def search_products(self, query: str, category: str | None = None) -> list[CatalogProduct]:
-        """Busca productos por nombre o categoría (para tool calling)."""
+        """Busca productos por nombre, categoría o descripción con matching parcial y sinónimos."""
         products = await self.get_products()
         q = query.lower()
-        results = [
-            p for p in products
-            if q in p.name.lower() or (p.description and q in p.description.lower())
-        ]
+
+        # Construir conjunto de términos de búsqueda: tokens individuales + sinónimos
+        tokens: set[str] = {q}
+        for word in q.split():
+            tokens.add(word)
+            tokens.update(self._SYNONYMS.get(word, []))
+
+        def matches(p: CatalogProduct) -> bool:
+            name = p.name.lower()
+            cat = p.category.lower()
+            desc = (p.description or "").lower()
+            return any(t in name or t in cat or t in desc for t in tokens)
+
+        pool = products
         if category:
-            results = [p for p in results if p.category.lower() == category.lower()]
+            pool = [p for p in products if category.lower() in p.category.lower()]
+
+        results = [p for p in pool if matches(p)]
+
+        # Fallback: sin resultados y sin categoría fija → productos de la categoría más relevante
+        if not results and not category:
+            matching_cats: list[str] = []
+            for p in products:
+                if p.category not in matching_cats and any(t in p.category.lower() for t in tokens):
+                    matching_cats.append(p.category)
+            if matching_cats:
+                results = [p for p in products if p.category in matching_cats]
+            else:
+                results = [p for p in products if p.available]
+
         return results[:10]  # máximo 10 resultados
