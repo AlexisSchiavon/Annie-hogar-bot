@@ -1,0 +1,583 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Annie Hogar — Demo Chat</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,300;0,400;0,600;1,300&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --cream: #F7F3ED;
+    --warm-white: #FDFAF6;
+    --brown-dark: #2C1810;
+    --brown-mid: #6B3F2A;
+    --brown-light: #C4956A;
+    --brown-pale: #E8D5BF;
+    --green-wa: #25D366;
+    --green-wa-dark: #128C7E;
+    --bubble-out: #DCF8C6;
+    --bubble-in: #FFFFFF;
+    --text-dark: #1a1a1a;
+    --text-mid: #555;
+    --text-light: #999;
+    --shadow: 0 2px 20px rgba(44,24,16,0.10);
+  }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--cream);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+
+  /* Background texture */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: 
+      radial-gradient(circle at 20% 20%, rgba(196,149,106,0.12) 0%, transparent 50%),
+      radial-gradient(circle at 80% 80%, rgba(107,63,42,0.08) 0%, transparent 50%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .wrapper {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    max-width: 420px;
+  }
+
+  /* Header branding */
+  .brand {
+    text-align: center;
+    margin-bottom: 16px;
+  }
+
+  .brand-name {
+    font-family: 'Fraunces', serif;
+    font-size: 28px;
+    font-weight: 300;
+    color: var(--brown-dark);
+    letter-spacing: -0.5px;
+  }
+
+  .brand-name span {
+    font-style: italic;
+    color: var(--brown-mid);
+  }
+
+  .brand-sub {
+    font-size: 12px;
+    color: var(--text-light);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-top: 2px;
+  }
+
+  /* Phone frame */
+  .phone {
+    background: var(--warm-white);
+    border-radius: 24px;
+    box-shadow: var(--shadow), 0 0 0 1px rgba(44,24,16,0.06);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    height: 620px;
+  }
+
+  /* WhatsApp-style header */
+  .chat-header {
+    background: var(--green-wa-dark);
+    padding: 12px 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-shrink: 0;
+  }
+
+  .avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--brown-light), var(--brown-mid));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Fraunces', serif;
+    font-size: 18px;
+    color: white;
+    flex-shrink: 0;
+  }
+
+  .chat-header-info { flex: 1; }
+
+  .chat-header-name {
+    font-size: 15px;
+    font-weight: 500;
+    color: white;
+  }
+
+  .chat-header-status {
+    font-size: 12px;
+    color: rgba(255,255,255,0.75);
+  }
+
+  .header-dots {
+    display: flex;
+    gap: 4px;
+    align-items: center;
+  }
+
+  .header-dots span {
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.6);
+  }
+
+  /* Chat background */
+  .chat-bg {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px 12px;
+    background-color: #E5DDD5;
+    background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23c4956a' fill-opacity='0.07'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    scroll-behavior: smooth;
+  }
+
+  .chat-bg::-webkit-scrollbar { width: 4px; }
+  .chat-bg::-webkit-scrollbar-track { background: transparent; }
+  .chat-bg::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.15); border-radius: 2px; }
+
+  /* Messages */
+  .msg {
+    display: flex;
+    flex-direction: column;
+    max-width: 80%;
+    animation: fadeUp 0.2s ease;
+  }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .msg.out {
+    align-self: flex-end;
+    align-items: flex-end;
+  }
+
+  .msg.in {
+    align-self: flex-start;
+    align-items: flex-start;
+  }
+
+  .bubble {
+    padding: 8px 12px;
+    border-radius: 12px;
+    font-size: 14px;
+    line-height: 1.45;
+    color: var(--text-dark);
+    word-break: break-word;
+    white-space: pre-wrap;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.12);
+    position: relative;
+  }
+
+  .msg.out .bubble {
+    background: var(--bubble-out);
+    border-bottom-right-radius: 4px;
+  }
+
+  .msg.in .bubble {
+    background: var(--bubble-in);
+    border-bottom-left-radius: 4px;
+  }
+
+  .msg-time {
+    font-size: 10px;
+    color: var(--text-light);
+    margin-top: 2px;
+    padding: 0 4px;
+  }
+
+  /* Typing indicator */
+  .typing-bubble {
+    background: var(--bubble-in);
+    border-radius: 12px;
+    border-bottom-left-radius: 4px;
+    padding: 12px 16px;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.12);
+    display: flex;
+    gap: 4px;
+    align-items: center;
+    align-self: flex-start;
+    animation: fadeUp 0.2s ease;
+  }
+
+  .typing-bubble span {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #aaa;
+    animation: bounce 1.2s infinite;
+  }
+
+  .typing-bubble span:nth-child(2) { animation-delay: 0.2s; }
+  .typing-bubble span:nth-child(3) { animation-delay: 0.4s; }
+
+  @keyframes bounce {
+    0%, 60%, 100% { transform: translateY(0); }
+    30% { transform: translateY(-5px); }
+  }
+
+  /* Date divider */
+  .date-divider {
+    text-align: center;
+    font-size: 11px;
+    color: var(--text-mid);
+    background: rgba(255,255,255,0.55);
+    border-radius: 8px;
+    padding: 3px 10px;
+    align-self: center;
+    margin: 6px 0;
+    backdrop-filter: blur(4px);
+  }
+
+  /* Input area */
+  .chat-input-area {
+    background: #F0F0F0;
+    padding: 8px 10px;
+    display: flex;
+    align-items: flex-end;
+    gap: 8px;
+    flex-shrink: 0;
+  }
+
+  .input-box {
+    flex: 1;
+    background: white;
+    border-radius: 24px;
+    padding: 10px 16px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px;
+    color: var(--text-dark);
+    border: none;
+    outline: none;
+    resize: none;
+    max-height: 100px;
+    line-height: 1.4;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.08);
+  }
+
+  .input-box::placeholder { color: #aaa; }
+
+  .send-btn {
+    width: 42px;
+    height: 42px;
+    border-radius: 50%;
+    background: var(--green-wa);
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s, transform 0.1s;
+    flex-shrink: 0;
+  }
+
+  .send-btn:hover { background: var(--green-wa-dark); }
+  .send-btn:active { transform: scale(0.93); }
+  .send-btn:disabled { background: #ccc; cursor: not-allowed; }
+
+  .send-btn svg { width: 20px; height: 20px; fill: white; }
+
+  /* Config panel */
+  .config-panel {
+    background: white;
+    border-radius: 16px;
+    padding: 16px;
+    margin-bottom: 16px;
+    box-shadow: var(--shadow);
+    border: 1px solid rgba(44,24,16,0.06);
+  }
+
+  .config-title {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    color: var(--text-light);
+    margin-bottom: 10px;
+  }
+
+  .config-row {
+    display: flex;
+    gap: 8px;
+  }
+
+  .config-input {
+    flex: 1;
+    padding: 8px 12px;
+    border: 1px solid var(--brown-pale);
+    border-radius: 10px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px;
+    color: var(--text-dark);
+    outline: none;
+    background: var(--cream);
+    transition: border-color 0.15s;
+  }
+
+  .config-input:focus { border-color: var(--brown-light); }
+
+  .config-btn {
+    padding: 8px 14px;
+    background: var(--brown-mid);
+    color: white;
+    border: none;
+    border-radius: 10px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px;
+    cursor: pointer;
+    transition: background 0.15s;
+    white-space: nowrap;
+  }
+
+  .config-btn:hover { background: var(--brown-dark); }
+
+  .config-hint {
+    font-size: 11px;
+    color: var(--text-light);
+    margin-top: 6px;
+  }
+
+  /* Footer */
+  .footer {
+    text-align: center;
+    margin-top: 12px;
+    font-size: 11px;
+    color: var(--text-light);
+  }
+
+  .footer a { color: var(--brown-light); text-decoration: none; }
+
+  /* Error toast */
+  .toast {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%) translateY(80px);
+    background: #e74c3c;
+    color: white;
+    padding: 10px 20px;
+    border-radius: 12px;
+    font-size: 13px;
+    z-index: 100;
+    transition: transform 0.3s ease;
+    pointer-events: none;
+  }
+
+  .toast.show { transform: translateX(-50%) translateY(0); }
+</style>
+</head>
+<body>
+
+<div class="wrapper">
+
+  <div class="brand">
+    <div class="brand-name">Annie <span>Hogar</span></div>
+    <div class="brand-sub">Demo · Asistente de ventas</div>
+  </div>
+
+  <div class="config-panel">
+    <div class="config-title">Configuración de prueba</div>
+    <div class="config-row">
+      <input class="config-input" id="cfg-phone" type="text" placeholder="Teléfono (ej: 573001234567)" value="573001234567">
+      <input class="config-input" id="cfg-name" type="text" placeholder="Nombre" value="Cliente Demo" style="max-width:130px">
+    </div>
+    <div class="config-hint">Usa teléfonos diferentes para simular distintos clientes</div>
+  </div>
+
+  <div class="phone">
+    <div class="chat-header">
+      <div class="avatar">A</div>
+      <div class="chat-header-info">
+        <div class="chat-header-name">Annie Hogar</div>
+        <div class="chat-header-status" id="status-text">en línea</div>
+      </div>
+      <div class="header-dots">
+        <span></span><span></span><span></span>
+      </div>
+    </div>
+
+    <div class="chat-bg" id="chat-bg">
+      <div class="date-divider">Hoy</div>
+      <div class="msg in">
+        <div class="bubble">¡Hola! 👋 Soy Annie, asistente virtual de Annie Hogar. Estoy aquí para ayudarte a encontrar los mejores muebles y colchones. ¿En qué puedo ayudarte hoy?</div>
+        <div class="msg-time" id="init-time"></div>
+      </div>
+    </div>
+
+    <div class="chat-input-area">
+      <textarea class="input-box" id="msg-input" placeholder="Escribe un mensaje..." rows="1"></textarea>
+      <button class="send-btn" id="send-btn" onclick="sendMessage()">
+        <svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <div class="footer">
+    Interfaz de prueba · <a href="#" onclick="clearChat()">Nueva conversación</a>
+  </div>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  // ⚙️ CONFIGURACIÓN — cambia esta URL por la tuya
+  const API_URL = 'https://annie-hogar-fastapi.ap240g.easypanel.host/chat';
+  const API_KEY = 'annie-hogar-secret-2026';
+
+  // Init time
+  document.getElementById('init-time').textContent = now();
+
+  function now() {
+    return new Date().toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
+  }
+
+  function getPhone() { return document.getElementById('cfg-phone').value.trim() || '573000000000'; }
+  function getName()  { return document.getElementById('cfg-name').value.trim() || 'Cliente'; }
+
+  const chatBg   = document.getElementById('chat-bg');
+  const input    = document.getElementById('msg-input');
+  const sendBtn  = document.getElementById('send-btn');
+  const statusEl = document.getElementById('status-text');
+
+  // Auto-resize textarea
+  input.addEventListener('input', () => {
+    input.style.height = 'auto';
+    input.style.height = Math.min(input.scrollHeight, 100) + 'px';
+  });
+
+  // Enter to send (Shift+Enter for newline)
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage();
+    }
+  });
+
+  function addMessage(text, type) {
+    const msg = document.createElement('div');
+    msg.className = `msg ${type}`;
+    msg.innerHTML = `
+      <div class="bubble">${escapeHtml(text)}</div>
+      <div class="msg-time">${now()}</div>
+    `;
+    chatBg.appendChild(msg);
+    scrollDown();
+    return msg;
+  }
+
+  function escapeHtml(text) {
+    return text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+      .replace(/\n/g, '<br>');
+  }
+
+  function showTyping() {
+    const t = document.createElement('div');
+    t.className = 'typing-bubble';
+    t.id = 'typing';
+    t.innerHTML = '<span></span><span></span><span></span>';
+    chatBg.appendChild(t);
+    scrollDown();
+  }
+
+  function hideTyping() {
+    const t = document.getElementById('typing');
+    if (t) t.remove();
+  }
+
+  function scrollDown() {
+    setTimeout(() => chatBg.scrollTop = chatBg.scrollHeight, 50);
+  }
+
+  function showToast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 3500);
+  }
+
+  async function sendMessage() {
+    const text = input.value.trim();
+    if (!text || sendBtn.disabled) return;
+
+    addMessage(text, 'out');
+    input.value = '';
+    input.style.height = 'auto';
+    sendBtn.disabled = true;
+    statusEl.textContent = 'escribiendo...';
+    showTyping();
+
+    try {
+      const res = await fetch(API_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-API-Key': API_KEY
+        },
+        body: JSON.stringify({
+          phone: getPhone(),
+          name: getName(),
+          message: text
+        })
+      });
+
+      if (!res.ok) throw new Error(`Error ${res.status}`);
+      const data = await res.json();
+      hideTyping();
+      addMessage(data.response_text || '(sin respuesta)', 'in');
+
+    } catch (err) {
+      hideTyping();
+      showToast('Error al conectar con el servidor');
+      console.error(err);
+    } finally {
+      sendBtn.disabled = false;
+      statusEl.textContent = 'en línea';
+      input.focus();
+    }
+  }
+
+  function clearChat() {
+    // Generate new random phone to start fresh conversation
+    const newPhone = '57' + Math.floor(3000000000 + Math.random() * 999999999);
+    document.getElementById('cfg-phone').value = newPhone;
+    chatBg.innerHTML = `
+      <div class="date-divider">Hoy</div>
+      <div class="msg in">
+        <div class="bubble">¡Hola! 👋 Soy Annie, asistente virtual de Annie Hogar. Estoy aquí para ayudarte a encontrar los mejores muebles y colchones. ¿En qué puedo ayudarte hoy?</div>
+        <div class="msg-time">${now()}</div>
+      </div>
+    `;
+  }
+</script>
+</body>
+</html>

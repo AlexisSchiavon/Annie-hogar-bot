@@ -6,6 +6,9 @@ import time
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
+
 import structlog
 from fastapi import Depends, FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
@@ -81,6 +84,12 @@ app.add_middleware(
     allow_methods=["GET", "POST"],
     allow_headers=["*"],
 )
+
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
+@app.get("/demo")
+async def demo():
+    return FileResponse("static/index.html")
 
 
 # ------------------------------------------------------------------
