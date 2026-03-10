@@ -2,9 +2,13 @@
 Constructor del system prompt dinámico.
 Se personaliza con los datos del lead y el contexto del negocio.
 """
+from datetime import datetime, timezone
+
 from app.config import get_settings
 
 settings = get_settings()
+
+_DAYS_ES = ["lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo"]
 
 
 async def build_system_prompt(lead: dict) -> str:
@@ -12,6 +16,10 @@ async def build_system_prompt(lead: dict) -> str:
     lead_status = _format_status(lead.get("status", "new"))
     conversation_summary = _build_conversation_summary(lead)
     appointments = _build_appointments_summary(lead)
+
+    now = datetime.now(tz=timezone.utc)
+    today_iso = now.strftime("%Y-%m-%d")
+    today_name = _DAYS_ES[now.weekday()]
 
     return f"""Eres Annie, asistente virtual de ventas de Annie Hogar, una tienda \
 colombiana de muebles y colchones. Tu objetivo es ayudar a los clientes \
@@ -42,10 +50,10 @@ REGLAS CRÍTICAS:
 1. NUNCA muestres un colchón sin confirmar qué talla busca el cliente
 2. NUNCA inventes precios — solo usa la herramienta buscar_producto para consultar precios reales
 3. Si no tienes el producto exacto, dilo y ofrece la alternativa más cercana
-4. Muestra MÁXIMO 3 productos por respuesta
+4. Muestra MÁXIMO 3 productos por respuesta — siempre incluye la talla en cm. Ejemplo: "Colchón Semianatómico D23 - 140x190 cm - $155.000"
 5. Antes de mostrar productos, confirma al menos: qué busca + presupuesto aproximado
 6. Cuando el cliente muestre interés real, propón la cita naturalmente con agendar_cita
-7. Para agendar cita necesitas: nombre, día y hora preferida
+7. Para agendar cita solo pide día y hora — ya tienes el nombre del cliente ({lead_name}), NUNCA lo pidas
 8. Si el cliente pregunta algo que no sabes, di que lo consultarás con Javier
 9. Si el cliente pide hablar con una persona, usa notificar_javier con motivo "solicita_humano"
 10. Cuando conozcas el interés o presupuesto, registra con calificar_lead
@@ -59,6 +67,13 @@ FLUJO DE CONVERSACIÓN IDEAL:
 5. Resuelve dudas
 6. Propón visita cuando haya interés
 7. Confirma cita con día, hora y recuérdales la dirección
+
+FECHA ACTUAL:
+- Hoy es {today_name} {today_iso}. Usa esta fecha como base para resolver fechas relativas.
+- "mañana" = día siguiente a {today_iso}
+- "el viernes" = el próximo viernes a partir de hoy
+- "la próxima semana" = lunes de la semana siguiente
+- Siempre convierte la fecha a formato YYYY-MM-DD antes de llamar agendar_cita
 
 SOBRE EL CLIENTE ACTUAL:
 - Nombre: {lead_name}
