@@ -2,10 +2,13 @@
 Annie Hogar Bot - FastAPI application entrypoint.
 Define todos los endpoints y middleware de la aplicación.
 """
+import asyncio
+import contextlib
 import time
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 
+import httpx
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 
@@ -16,17 +19,23 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import get_settings
 from app.db.postgres import check_postgres_health, dispose_engine
 from app.db.redis_client import (
+    append_pending_message,
     check_redis_health,
     close_redis,
+    delete_pending_message,
     get_catalog_last_refresh,
     get_human_takeover,
+    get_pending_message,
+    get_pending_phones,
     get_redis,
+    has_debounce_timer,
     set_human_takeover,
 )
 from app.dependencies import verify_api_key
 from app.models.schemas import (
     CatalogProductsResponse,
     CatalogRefreshResponse,
+    ChatAckResponse,
     ChatRequest,
     ChatResponse,
     FollowUpsResponse,
@@ -41,6 +50,78 @@ from app.models.schemas import (
 logger = structlog.get_logger(__name__)
 settings = get_settings()
 
+# Task handle para poder cancelarlo en shutdown
+_debounce_task: asyncio.Task | None = None
+
+
+# ------------------------------------------------------------------
+# Debounce worker
+# ------------------------------------------------------------------
+
+async def _process_and_notify(phone: str, data: dict) -> None:
+    """Procesa los mensajes acumulados de un teléfono y envía la respuesta vía webhook."""
+    log = logger.bind(phone=phone)
+    combined_message = "\n\n".join(data["messages"])
+    name = data.get("name")
+    first_received_at = datetime.fromisoformat(data["first_received_at"])
+
+    log.info("debounce_processing", messages_count=len(data["messages"]))
+
+    try:
+        from app.services.conversation import ConversationService
+        service = ConversationService()
+        result = await service.process_message(
+            phone=phone,
+            name=name,
+            message=combined_message,
+            timestamp=first_received_at,
+        )
+    except Exception:
+        log.exception("debounce_process_error")
+        return
+
+    if not settings.n8n_chat_response_webhook:
+        log.warning("debounce_no_response_webhook", response_preview=result.response_text[:80])
+        return
+
+    payload = {
+        "phone": phone,
+        "response_text": result.response_text,
+        "actions": [a.model_dump() for a in result.actions],
+    }
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.post(settings.n8n_chat_response_webhook, json=payload)
+            log.info("debounce_response_sent", status=resp.status_code)
+    except Exception:
+        log.exception("debounce_webhook_error")
+
+
+async def _debounce_worker() -> None:
+    """
+    Loop que corre cada segundo buscando mensajes pendientes cuyo
+    timer de debounce ya expiró, y los procesa.
+    """
+    log = logger.bind(worker="debounce")
+    log.info("debounce_worker_started", ttl=settings.debounce_ttl)
+    while True:
+        await asyncio.sleep(1)
+        try:
+            phones = await get_pending_phones()
+            for phone in phones:
+                if await has_debounce_timer(phone):
+                    continue  # La ventana sigue abierta
+                data = await get_pending_message(phone)
+                if data is None:
+                    continue
+                # Eliminar antes de procesar para evitar doble ejecución
+                await delete_pending_message(phone)
+                asyncio.create_task(_process_and_notify(phone, data))
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            log.exception("debounce_worker_error")
+
 
 # ------------------------------------------------------------------
 # Lifecycle
@@ -48,18 +129,25 @@ settings = get_settings()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    global _debounce_task
+
     # Startup
     logger.info("annie_bot_starting", bot_name=settings.bot_name)
     redis = await get_redis()
     # Marcar bot como activo al iniciar (si no hay valor previo)
     if not await redis.exists("bot:active"):
         await redis.set("bot:active", "true")
+    _debounce_task = asyncio.create_task(_debounce_worker())
     logger.info("annie_bot_ready")
 
     yield
 
     # Shutdown
     logger.info("annie_bot_shutting_down")
+    if _debounce_task is not None:
+        _debounce_task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await _debounce_task
     await close_redis()
     await dispose_engine()
     logger.info("annie_bot_stopped")
@@ -147,40 +235,52 @@ async def health_check():
 
 @app.post(
     "/chat",
-    response_model=ChatResponse,
+    # response_model omitido: puede ser ChatResponse (instant=True) o ChatAckResponse (debounce)
     dependencies=[Depends(verify_api_key)],
     tags=["Conversación"],
 )
-async def chat(body: ChatRequest):
+async def chat(body: ChatRequest) -> ChatResponse | ChatAckResponse:
     """
     Endpoint principal de conversación.
-    Recibe mensaje de WhatsApp (vía n8n/ManyChat) y retorna la respuesta del bot.
+
+    - **instant=false** (por defecto): encola el mensaje con debounce de 15s.
+      Responde 200 `{"status": "received"}` inmediatamente. La respuesta real
+      se envía a `N8N_CHAT_RESPONSE_WEBHOOK` cuando expira la ventana.
+    - **instant=true**: procesa de inmediato y retorna la respuesta (demo/testing).
     """
     log = logger.bind(phone=body.phone, name=body.name)
 
-    # Verificar human takeover
+    # Verificar human takeover (en ambos modos)
     takeover_active = await get_human_takeover(body.phone)
     if takeover_active:
         log.info("chat_skipped_human_takeover")
-        return ChatResponse(
-            response_text="",
-            actions=[],
+        if body.instant:
+            return ChatResponse(response_text="", actions=[])
+        return ChatAckResponse(status="received", debounce_seconds=0)
+
+    # ── Modo instant: sin debounce, respuesta en el mismo request ─────────
+    if body.instant:
+        log.info("chat_instant", message_length=len(body.message))
+        from app.services.conversation import ConversationService
+        service = ConversationService()
+        result = await service.process_message(
+            phone=body.phone,
+            name=body.name,
+            message=body.message,
+            timestamp=body.timestamp or datetime.now(timezone.utc),
         )
+        log.info("chat_instant_responded", actions_count=len(result.actions))
+        return result
 
-    log.info("chat_received", message_length=len(body.message))
-
-    # Importar servicio de conversación aquí para evitar importaciones circulares
-    from app.services.conversation import ConversationService
-    service = ConversationService()
-    result = await service.process_message(
+    # ── Modo debounce: encolar y responder inmediatamente ─────────────────
+    log.info("chat_queued", message_length=len(body.message))
+    await append_pending_message(
         phone=body.phone,
-        name=body.name,
         message=body.message,
-        timestamp=body.timestamp or datetime.now(timezone.utc),
+        name=body.name,
+        debounce_ttl=settings.debounce_ttl,
     )
-
-    log.info("chat_responded", actions_count=len(result.actions))
-    return result
+    return ChatAckResponse(status="received", debounce_seconds=settings.debounce_ttl)
 
 
 # ------------------------------------------------------------------

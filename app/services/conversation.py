@@ -45,8 +45,13 @@ class ConversationService:
         # Cargar/crear lead en PG
         lead = await self._upsert_lead(phone, name)
 
-        # Cargar sesión desde Redis (historial reciente)
-        session = await get_session(phone) or {"history": [], "lead_id": lead["id"]}
+        # Cargar sesión desde Redis; si expiró, reconstruir historial desde PostgreSQL
+        session = await get_session(phone)
+        if session is None:
+            history = await self._load_history_from_pg(lead["id"])
+            session = {"history": history, "lead_id": lead["id"]}
+            if history:
+                log.info("session_rebuilt_from_pg", messages=len(history))
 
         # Guardar mensaje del usuario en PG
         await self._save_message(lead["id"], "user", message)
@@ -158,6 +163,24 @@ class ConversationService:
         while truncated and truncated[0].get("role") != "user":
             truncated = truncated[1:]
         return truncated
+
+    async def _load_history_from_pg(self, lead_id: int, limit: int = 20) -> list[dict]:
+        """Reconstruye el historial de conversación desde PostgreSQL cuando la sesión Redis expiró."""
+        from sqlalchemy import select
+        from app.db.postgres import get_db_session
+        from app.models.database import Conversation
+
+        async with get_db_session() as session:
+            result = await session.execute(
+                select(Conversation)
+                .where(Conversation.lead_id == lead_id)
+                .where(Conversation.role.in_(["user", "assistant"]))
+                .order_by(Conversation.created_at.desc())
+                .limit(limit)
+            )
+            rows = result.scalars().all()
+        # Revertir a orden cronológico
+        return [{"role": r.role, "content": r.content} for r in reversed(rows)]
 
     async def _upsert_lead(self, phone: str, name: str | None) -> dict:
         from sqlalchemy import select

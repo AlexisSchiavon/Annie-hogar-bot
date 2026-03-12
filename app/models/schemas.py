@@ -31,6 +31,10 @@ class ChatRequest(BaseModel):
     name: str | None = Field(None, max_length=100)
     message: str = Field(..., min_length=1, max_length=4096)
     timestamp: datetime | None = Field(None)
+    instant: bool = Field(
+        False,
+        description="Si True, salta el debounce y procesa el mensaje inmediatamente (útil para demos).",
+    )
 
     @field_validator("phone")
     @classmethod
@@ -44,6 +48,12 @@ class ChatRequest(BaseModel):
 class ChatResponse(BaseModel):
     response_text: str
     actions: list[ChatAction] = Field(default_factory=list)
+
+
+class ChatAckResponse(BaseModel):
+    """Respuesta inmediata cuando el mensaje entra en la cola de debounce."""
+    status: Literal["received"]
+    debounce_seconds: int
 
 
 # ------------------------------------------------------------------

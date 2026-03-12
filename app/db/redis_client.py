@@ -165,6 +165,75 @@ async def check_rate_limit(phone: str) -> bool:
 
 
 # ------------------------------------------------------------------
+# Debounce de mensajes entrantes
+# ------------------------------------------------------------------
+#
+# Estructura en Redis:
+#   pending:{phone}         → JSON con los mensajes acumulados (sin TTL)
+#   debounce_timer:{phone}  → "1" con TTL=debounce_ttl (ventana de espera)
+#
+# Lógica:
+#   - Al llegar un mensaje: append a pending + reset del timer.
+#   - Worker cada 1s: para cada pending, si el timer ya expiró → procesar.
+# ------------------------------------------------------------------
+
+async def get_pending_message(phone: str) -> dict | None:
+    """Retorna los datos de mensajes pendientes para un teléfono, o None si no hay."""
+    client = await get_redis()
+    raw = await client.get(f"pending:{phone}")
+    if raw is None:
+        return None
+    return json.loads(raw)
+
+
+async def append_pending_message(phone: str, message: str, name: str | None, debounce_ttl: int) -> None:
+    """
+    Agrega el mensaje a la cola pendiente del teléfono y reinicia el timer.
+    Si no hay cola previa, la crea. Es idempotente para el nombre del lead.
+    """
+    client = await get_redis()
+    raw = await client.get(f"pending:{phone}")
+    if raw:
+        data = json.loads(raw)
+        data["messages"].append(message)
+        # Actualizar nombre solo si no teníamos uno
+        if name and not data.get("name"):
+            data["name"] = name
+    else:
+        data = {
+            "messages": [message],
+            "name": name,
+            "first_received_at": _now_iso(),
+        }
+
+    pipe = client.pipeline()
+    pipe.set(f"pending:{phone}", json.dumps(data, ensure_ascii=False))
+    pipe.setex(f"debounce_timer:{phone}", debounce_ttl, "1")
+    await pipe.execute()
+
+
+async def delete_pending_message(phone: str) -> None:
+    """Elimina la cola pendiente y el timer de un teléfono (tras procesar)."""
+    client = await get_redis()
+    await client.delete(f"pending:{phone}", f"debounce_timer:{phone}")
+
+
+async def get_pending_phones() -> list[str]:
+    """Retorna todos los teléfonos con mensajes pendientes."""
+    client = await get_redis()
+    phones: list[str] = []
+    async for key in client.scan_iter("pending:*"):
+        phones.append(key.removeprefix("pending:"))
+    return phones
+
+
+async def has_debounce_timer(phone: str) -> bool:
+    """Retorna True si el timer de debounce aún está activo (ventana abierta)."""
+    client = await get_redis()
+    return bool(await client.exists(f"debounce_timer:{phone}"))
+
+
+# ------------------------------------------------------------------
 # Interno
 # ------------------------------------------------------------------
 

@@ -67,6 +67,9 @@ class Settings(BaseSettings):
     # n8n
     # ------------------------------------------------------------------
     n8n_webhook_url: str = "http://n8n:5678"
+    # Webhook al que el bot POSTea {phone, response_text, actions} tras el debounce.
+    # Si está vacío, la respuesta se descarta (útil en desarrollo sin n8n).
+    n8n_chat_response_webhook: str = ""
 
     # ------------------------------------------------------------------
     # Redis TTLs (segundos)
@@ -75,6 +78,7 @@ class Settings(BaseSettings):
     catalog_ttl: int = 900            # 15 minutos
     rate_limit_ttl: int = 60          # 1 minuto
     rate_limit_max: int = 10          # mensajes por minuto por phone
+    debounce_ttl: int = 15            # ventana de debounce en segundos
 
     # ------------------------------------------------------------------
     # OpenAI retries
