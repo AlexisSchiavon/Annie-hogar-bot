@@ -28,6 +28,7 @@ async def execute_tool(
         "agendar_cita": _agendar_cita,
         "calificar_lead": _calificar_lead,
         "notificar_javier": _notificar_javier,
+        "compartir_catalogo": _compartir_catalogo,
     }
 
     handler = handlers.get(tool_name)
@@ -160,3 +161,21 @@ async def _notificar_javier(args: dict, *, lead: dict, phone: str) -> tuple[str,
     action = ChatAction(type="notify_javier", data=payload)
     logger.info("javier_notified", motivo=motivo, phone=phone)
     return "Notificación enviada a Javier.", action
+
+async def _compartir_catalogo(args: dict, *, lead: dict, phone: str) -> tuple[str, None]:
+    from app.config import get_settings
+    settings = get_settings()
+
+    categoria = args["categoria"].lower()
+    id_map = {
+        "colchones": settings.drive_pdf_colchones,
+        "camas": settings.drive_pdf_camas,
+        "salas": settings.drive_pdf_salas,
+        "comedores": settings.drive_pdf_comedores,
+    }
+    file_id = id_map.get(categoria, "")
+    if not file_id:
+        return f"El catálogo de {categoria} no está disponible por el momento.", None
+
+    link = f"https://drive.google.com/file/d/{file_id}/view?usp=sharing"
+    return f"Aquí tienes el portafolio de {categoria}: {link}", None

@@ -81,6 +81,14 @@ class Settings(BaseSettings):
     debounce_ttl: int = 15            # ventana de debounce en segundos
 
     # ------------------------------------------------------------------
+    # Google Drive — PDFs de catálogo por categoría (IDs de archivo)
+    # ------------------------------------------------------------------
+    drive_pdf_colchones: str = ""
+    drive_pdf_camas: str = ""
+    drive_pdf_salas: str = ""
+    drive_pdf_comedores: str = ""
+
+    # ------------------------------------------------------------------
     # OpenAI retries
     # ------------------------------------------------------------------
     openai_max_retries: int = 3

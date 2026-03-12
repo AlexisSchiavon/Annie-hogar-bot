@@ -117,4 +117,25 @@ def get_tool_definitions() -> list[dict[str, Any]]:
                 },
             },
         },
+            {
+            "type": "function",
+            "function": {
+                "name": "compartir_catalogo",
+                "description": (
+                    "Comparte el link de descarga del catálogo/portafolio PDF de una categoría. "
+                    "Úsala cuando el cliente pida el catálogo, portafolio o quiera ver más productos de una categoría."
+                ),
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "categoria": {
+                            "type": "string",
+                            "description": "Categoría del catálogo a compartir",
+                            "enum": ["colchones", "camas", "salas", "comedores"],
+                        },
+                    },
+                    "required": ["categoria"],
+                },
+            },
+        },
     ]
