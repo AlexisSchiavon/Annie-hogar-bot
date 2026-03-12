@@ -75,7 +75,7 @@ class NotificationService:
             "client_phone": client_phone,
             "appointment_id": appointment_id,
         }
-        logger.info("notification_built", event="appointment_scheduled", client=client_phone)
+        logger.info("notification_built", notification_event="appointment_scheduled", client=client_phone)
         return payload
 
     # ------------------------------------------------------------------
@@ -105,7 +105,7 @@ class NotificationService:
             "lead_id": lead_id,
             "interest": interest,
         }
-        logger.info("notification_built", event="hot_lead", client=client_phone)
+        logger.info("notification_built", notification_event="hot_lead", client=client_phone)
         return payload
 
     # ------------------------------------------------------------------
@@ -131,7 +131,7 @@ class NotificationService:
             "lead_id": lead_id,
             "action": "enable_takeover",  # señal para el workflow de n8n
         }
-        logger.info("notification_built", event="human_requested", client=client_phone)
+        logger.info("notification_built", notification_event="human_requested", client=client_phone)
         return payload
 
     # ------------------------------------------------------------------
@@ -158,7 +158,7 @@ class NotificationService:
             "client_phone": client_phone,
             "lead_id": lead_id,
         }
-        logger.info("notification_built", event=motivo, client=client_phone)
+        logger.info("notification_built", notification_event=motivo, client=client_phone)
         return payload
 
     # ------------------------------------------------------------------
@@ -183,14 +183,14 @@ class NotificationService:
                 resp.raise_for_status()
                 logger.info(
                     "notification_dispatched",
-                    event=payload.get("event"),
+                    notification_event=payload.get("event"),
                     status=resp.status_code,
                 )
                 return True
         except Exception as exc:
             logger.error(
                 "notification_dispatch_failed",
-                event=payload.get("event"),
+                notification_event=payload.get("event"),
                 error=str(exc),
             )
             return False
