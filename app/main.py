@@ -80,6 +80,41 @@ async def _process_and_notify(phone: str, data: dict) -> None:
         log.exception("debounce_process_error")
         return
 
+    subscriber_id = data.get("subscriber_id")
+
+    if subscriber_id:
+        # Enviar respuesta directamente a ManyChat
+        manychat_payload = {
+            "subscriber_id": subscriber_id,
+            "data": {
+                "version": "v2",
+                "content": {
+                    "type": "whatsapp",
+                    "messages": [
+                        {
+                            "type": "text",
+                            "text": result.response_text,
+                        }
+                    ],
+                },
+            },
+            "message_tag": "ACCOUNT_UPDATE",
+        }
+        try:
+            async with httpx.AsyncClient(timeout=10) as client:
+                resp = await client.post(
+                    "https://api.manychat.com/fb/sending/sendContent",
+                    json=manychat_payload,
+                    headers={
+                        "Authorization": f"Bearer {settings.manychat_api_key}",
+                        "Content-Type": "application/json",
+                    },
+                )
+                log.info("debounce_manychat_sent", status=resp.status_code, subscriber_id=subscriber_id)
+        except Exception:
+            log.exception("debounce_manychat_error")
+        return
+
     if not settings.n8n_chat_response_webhook:
         log.warning("debounce_no_response_webhook", response_preview=result.response_text[:80])
         return
@@ -279,6 +314,7 @@ async def chat(body: ChatRequest) -> ChatResponse | ChatAckResponse:
         message=body.message,
         name=body.name,
         debounce_ttl=settings.debounce_ttl,
+        subscriber_id=body.subscriber_id,
     )
     return ChatAckResponse(status="received", debounce_seconds=settings.debounce_ttl)
 

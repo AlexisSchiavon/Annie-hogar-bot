@@ -186,7 +186,13 @@ async def get_pending_message(phone: str) -> dict | None:
     return json.loads(raw)
 
 
-async def append_pending_message(phone: str, message: str, name: str | None, debounce_ttl: int) -> None:
+async def append_pending_message(
+    phone: str,
+    message: str,
+    name: str | None,
+    debounce_ttl: int,
+    subscriber_id: str | None = None,
+) -> None:
     """
     Agrega el mensaje a la cola pendiente del teléfono y reinicia el timer.
     Si no hay cola previa, la crea. Es idempotente para el nombre del lead.
@@ -199,10 +205,14 @@ async def append_pending_message(phone: str, message: str, name: str | None, deb
         # Actualizar nombre solo si no teníamos uno
         if name and not data.get("name"):
             data["name"] = name
+        # Actualizar subscriber_id solo si no teníamos uno
+        if subscriber_id and not data.get("subscriber_id"):
+            data["subscriber_id"] = subscriber_id
     else:
         data = {
             "messages": [message],
             "name": name,
+            "subscriber_id": subscriber_id,
             "first_received_at": _now_iso(),
         }
 

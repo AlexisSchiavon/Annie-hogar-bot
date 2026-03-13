@@ -31,6 +31,7 @@ class ChatRequest(BaseModel):
     name: str | None = Field(None, max_length=100)
     message: str = Field(..., min_length=1, max_length=4096)
     timestamp: datetime | None = Field(None)
+    subscriber_id: str | None = Field(None, description="ID del suscriptor en ManyChat")
     instant: bool = Field(
         False,
         description="Si True, salta el debounce y procesa el mensaje inmediatamente (útil para demos).",
