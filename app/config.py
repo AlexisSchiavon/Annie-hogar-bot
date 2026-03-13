@@ -54,8 +54,8 @@ class Settings(BaseSettings):
     # Negocio
     # ------------------------------------------------------------------
     javier_phone: str
-    bot_name: str = "Annie Hogar"
-    store_address: str
+    bot_name: str = "Geraldine Ruiz"
+    store_address: str = "Cra 5ta # 95-14, un kilómetro más abajo de Homecenter, enseguida de Batericars"
     store_hours: str
 
     # ------------------------------------------------------------------

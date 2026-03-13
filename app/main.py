@@ -98,7 +98,6 @@ async def _process_and_notify(phone: str, data: dict) -> None:
                     ],
                 },
             },
-            "message_tag": "ACCOUNT_UPDATE",
         }
         try:
             async with httpx.AsyncClient(timeout=10) as client:
