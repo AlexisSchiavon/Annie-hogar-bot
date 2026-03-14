@@ -115,8 +115,12 @@ class CatalogService:
 
         pool = products
         if category:
-            pool = [p for p in products if category.lower() in p.category.lower()]
-            logger.info("search_products_pool_filtered", category=category, pool_size=len(pool))
+            filtered = [p for p in products if category.lower() in p.category.lower()]
+            logger.info("search_products_pool_filtered", category=category, pool_size=len(filtered))
+            if filtered:
+                pool = filtered
+            else:
+                logger.info("search_products_category_empty_fallback", category=category)
 
         results = [p for p in pool if matches(p)]
         logger.info("search_products_matches", count=len(results), using_fallback=False)
