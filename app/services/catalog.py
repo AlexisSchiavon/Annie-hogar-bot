@@ -88,6 +88,19 @@ class CatalogService:
         "sala": ["sofá", "sofa", "living"],
     }
 
+    # Dimensiones canónicas por nombre de talla — para ordenar resultados con talla exacta primero
+    _DIMENSION_TOKENS: dict[str, str] = {
+        "sencillo": "100x190",
+        "individual": "100x190",
+        "twin": "100x190",
+        "semi": "120x190",
+        "semidoble": "120x190",
+        "doble": "140x190",
+        "matrimonio": "140x190",
+        "queen": "160x190",
+        "king": "200x200",
+    }
+
     async def search_products(self, query: str, category: str | None = None) -> list[CatalogProduct]:
         """Busca productos por nombre, categoría o descripción con matching parcial y sinónimos."""
         products = await self.get_products()
@@ -123,6 +136,22 @@ class CatalogService:
                 logger.info("search_products_category_empty_fallback", category=category)
 
         results = [p for p in pool if matches(p)]
+
+        # Ordenar: productos cuya descripción/nombre contiene la dimensión exacta solicitada van primero
+        dim_token = next(
+            (self._DIMENSION_TOKENS[w] for w in q.split() if w in self._DIMENSION_TOKENS),
+            None,
+        )
+        # También detectar dimensiones escritas directamente (ej: "140x190")
+        if dim_token is None:
+            for word in q.split():
+                if "x" in word and word.replace("x", "").replace(".", "").isdigit():
+                    dim_token = word
+                    break
+        if dim_token:
+            results.sort(key=lambda p: 0 if dim_token in (p.name + " " + (p.description or "")).lower() else 1)
+            logger.info("search_products_dimension_sort", dim_token=dim_token)
+
         logger.info("search_products_matches", count=len(results), using_fallback=False)
 
         # Fallback: sin resultados y sin categoría fija → productos de la categoría más relevante
