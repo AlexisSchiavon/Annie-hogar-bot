@@ -99,6 +99,14 @@ class CatalogService:
             tokens.add(word)
             tokens.update(self._SYNONYMS.get(word, []))
 
+        logger.info(
+            "search_products_tokens",
+            query=query,
+            category=category,
+            tokens=sorted(tokens),
+            pool_total=len(products),
+        )
+
         def matches(p: CatalogProduct) -> bool:
             name = p.name.lower()
             cat = p.category.lower()
@@ -108,8 +116,10 @@ class CatalogService:
         pool = products
         if category:
             pool = [p for p in products if category.lower() in p.category.lower()]
+            logger.info("search_products_pool_filtered", category=category, pool_size=len(pool))
 
         results = [p for p in pool if matches(p)]
+        logger.info("search_products_matches", count=len(results), using_fallback=False)
 
         # Fallback: sin resultados y sin categoría fija → productos de la categoría más relevante
         if not results and not category:
@@ -117,9 +127,22 @@ class CatalogService:
             for p in products:
                 if p.category not in matching_cats and any(t in p.category.lower() for t in tokens):
                     matching_cats.append(p.category)
+
+            logger.info(
+                "search_products_fallback",
+                reason="no_direct_matches",
+                matching_categories=matching_cats,
+            )
+
             if matching_cats:
                 results = [p for p in products if p.category in matching_cats]
             else:
                 results = [p for p in products if p.available]
+                logger.info("search_products_fallback_all_available", count=len(results))
 
+        logger.info(
+            "search_products_result",
+            returned=min(len(results), 10),
+            names=[p.name for p in results[:10]],
+        )
         return results[:10]  # máximo 10 resultados
