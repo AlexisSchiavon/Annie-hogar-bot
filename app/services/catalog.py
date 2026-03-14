@@ -55,17 +55,41 @@ class CatalogService:
         return sheet.get_all_records()
 
     def _parse_rows(self, rows: list[dict[str, Any]]) -> list[CatalogProduct]:
+        # Loguear las columnas disponibles en el Sheet (solo primera fila para no saturar)
+        if rows:
+            logger.info("catalog_sheet_columns", columns=list(rows[0].keys()))
+
         products = []
         for row in rows:
             try:
+                nombre = str(row.get("nombre", row.get("name", "")))
+                categoria = str(row.get("categoria", row.get("category", "General")))
+                precio_raw = str(row.get("precio", row.get("price", 0)))
+                precio = float(precio_raw.replace(",", "").replace("$", "").replace(".", "").strip() or 0)
+                descripcion = str(row.get("descripcion", row.get("description", ""))) or None
+                talla = str(row.get("talla", row.get("medida", row.get("size", row.get("dimensión", row.get("dimension", "")))))) or ""
+
+                logger.debug(
+                    "catalog_row_parsed",
+                    nombre=nombre,
+                    talla=talla,
+                    precio=precio,
+                    categoria=categoria,
+                    columnas_extra=list(row.keys()),
+                )
+
+                # Si hay talla y no está ya en el nombre, incorporarla al nombre para que la búsqueda funcione
+                if talla and talla not in nombre:
+                    nombre = f"{nombre} {talla}"
+
                 products.append(
                     CatalogProduct(
-                        name=str(row.get("nombre", row.get("name", ""))),
-                        category=str(row.get("categoria", row.get("category", "General"))),
-                        price=float(str(row.get("precio", row.get("price", 0))).replace(",", "").replace("$", "")),
-                        description=str(row.get("descripcion", row.get("description", ""))) or None,
+                        name=nombre,
+                        category=categoria,
+                        price=precio,
+                        description=descripcion,
                         available=str(row.get("disponible", row.get("available", "si"))).lower() in ("si", "yes", "true", "1"),
-                        extra={k: v for k, v in row.items() if k not in ("nombre", "name", "categoria", "category", "precio", "price", "descripcion", "description", "disponible", "available")},
+                        extra={k: v for k, v in row.items() if k not in ("nombre", "name", "categoria", "category", "precio", "price", "descripcion", "description", "disponible", "available", "talla", "medida", "size", "dimensión", "dimension")},
                     )
                 )
             except Exception as exc:
