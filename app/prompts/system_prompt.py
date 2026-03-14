@@ -102,8 +102,10 @@ REGLAS CRÍTICAS:
 
 CATEGORÍAS DEL CATÁLOGO:
 - Colchones: colchones, colchonetas, protectores de colchón
-- Alcoba: bases de cama, espaldares, peinadores, espejos, armarios
-- Sala: salas, sofás, sofá cama
+- Espaldar: espaldares de cama
+- Base Cama: bases de cama
+- Sala: salas, sofás
+- Sofá cama: sofás cama
 - Comedor: comedores
 - Espejo: espejos con LED
 

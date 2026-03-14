@@ -26,7 +26,7 @@ def get_tool_definitions() -> list[dict[str, Any]]:
                         "categoria": {
                             "type": "string",
                             "description": "Filtro opcional por categoría",
-                            "enum": ["Colchones", "Alcoba", "Sala", "Comedor", "Espejo", "Sofá cama"],
+                            "enum": ["Colchones", "Espaldar", "Base Cama", "Sala", "Sofá cama", "Comedor", "Espejo"],
                         },
                     },
                     "required": ["query"],

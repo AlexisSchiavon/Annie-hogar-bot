@@ -161,20 +161,38 @@ class CatalogService:
 
         results = [p for p in pool if matches(p)]
 
-        # Ordenar: productos cuya descripción/nombre contiene la dimensión exacta solicitada van primero
+        # Ordenar por relevancia:
+        #   Prioridad 1: productos que contienen TODOS los tokens del query original
+        #   Prioridad 2: productos que contienen la dimensión exacta (si aplica)
+        #   Prioridad 3: resto
+        query_words = set(q.split())  # tokens literales del query, sin sinónimos
+
+        def _all_tokens_match(p: CatalogProduct) -> bool:
+            haystack = (p.name + " " + (p.description or "")).lower()
+            return all(w in haystack for w in query_words)
+
         dim_token = next(
             (self._DIMENSION_TOKENS[w] for w in q.split() if w in self._DIMENSION_TOKENS),
             None,
         )
-        # También detectar dimensiones escritas directamente (ej: "140x190")
         if dim_token is None:
             for word in q.split():
                 if "x" in word and word.replace("x", "").replace(".", "").isdigit():
                     dim_token = word
                     break
-        if dim_token:
-            results.sort(key=lambda p: 0 if dim_token in (p.name + " " + (p.description or "")).lower() else 1)
-            logger.info("search_products_dimension_sort", dim_token=dim_token)
+
+        def _sort_key(p: CatalogProduct) -> tuple:
+            all_match = 0 if _all_tokens_match(p) else 1
+            haystack = (p.name + " " + (p.description or "")).lower()
+            dim_match = 0 if (dim_token and dim_token in haystack) else 1
+            return (all_match, dim_match)
+
+        results.sort(key=_sort_key)
+        logger.info(
+            "search_products_sorted",
+            dim_token=dim_token,
+            top_result=results[0].name if results else None,
+        )
 
         logger.info("search_products_matches", count=len(results), using_fallback=False)
 
