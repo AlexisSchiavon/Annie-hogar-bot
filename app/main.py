@@ -75,6 +75,7 @@ async def _process_and_notify(phone: str, data: dict) -> None:
             name=name,
             message=combined_message,
             timestamp=first_received_at,
+            subscriber_id=data.get("subscriber_id"),
         )
     except Exception:
         log.exception("debounce_process_error")
@@ -167,6 +168,16 @@ async def lifespan(app: FastAPI):
 
     # Startup
     logger.info("annie_bot_starting", bot_name=settings.bot_name)
+
+    # Migración segura: añadir columna si no existe
+    from sqlalchemy import text
+    from app.db.postgres import get_db_session
+    async with get_db_session() as _session:
+        await _session.execute(text(
+            "ALTER TABLE leads ADD COLUMN IF NOT EXISTS manychat_subscriber_id VARCHAR(50)"
+        ))
+    logger.info("db_migration_checked")
+
     redis = await get_redis()
     # Marcar bot como activo al iniciar (si no hay valor previo)
     if not await redis.exists("bot:active"):
@@ -302,6 +313,7 @@ async def chat(body: ChatRequest) -> ChatResponse | ChatAckResponse:
             name=body.name,
             message=body.message,
             timestamp=body.timestamp or datetime.now(timezone.utc),
+            subscriber_id=body.subscriber_id,
         )
         log.info("chat_instant_responded", actions_count=len(result.actions))
         return result

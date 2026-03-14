@@ -32,6 +32,7 @@ class Lead(Base):
     budget_range: Mapped[str | None] = mapped_column(String(50), nullable=True)
     qualification: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
     human_takeover: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    manychat_subscriber_id: Mapped[str | None] = mapped_column(String(50), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True), nullable=False, server_default=func.now()
     )

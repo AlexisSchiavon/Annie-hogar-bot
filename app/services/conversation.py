@@ -30,6 +30,7 @@ class ConversationService:
         name: str | None,
         message: str,
         timestamp: datetime,
+        subscriber_id: str | None = None,
     ) -> ChatResponse:
         log = logger.bind(phone=phone)
 
@@ -53,7 +54,7 @@ class ConversationService:
             message = f"[Nota de voz]: {transcribed}"
 
         # Cargar/crear lead en PG
-        lead = await self._upsert_lead(phone, name)
+        lead = await self._upsert_lead(phone, name, subscriber_id)
 
         # Cargar sesión desde Redis; si expiró, reconstruir historial desde PostgreSQL
         session = await get_session(phone)
@@ -192,7 +193,7 @@ class ConversationService:
         # Revertir a orden cronológico
         return [{"role": r.role, "content": r.content} for r in reversed(rows)]
 
-    async def _upsert_lead(self, phone: str, name: str | None) -> dict:
+    async def _upsert_lead(self, phone: str, name: str | None, subscriber_id: str | None = None) -> dict:
         from sqlalchemy import select
         from app.db.postgres import get_db_session
         from app.models.database import Lead
@@ -202,12 +203,20 @@ class ConversationService:
             lead = result.scalar_one_or_none()
 
             if lead is None:
-                lead = Lead(phone=phone, name=name, source="whatsapp")
+                lead = Lead(
+                    phone=phone,
+                    name=name,
+                    source="whatsapp",
+                    manychat_subscriber_id=subscriber_id,
+                )
                 session.add(lead)
                 await session.flush()
                 logger.info("lead_created", phone=phone)
-            elif name and not lead.name:
-                lead.name = name
+            else:
+                if name and not lead.name:
+                    lead.name = name
+                if subscriber_id and lead.manychat_subscriber_id != subscriber_id:
+                    lead.manychat_subscriber_id = subscriber_id
 
             return {"id": lead.id, "phone": lead.phone, "name": lead.name, "status": lead.status, "qualification": lead.qualification}
 

@@ -49,6 +49,7 @@ class Settings(BaseSettings):
     # ------------------------------------------------------------------
     manychat_api_key: str
     manychat_flow_ns: str
+    manychat_javier_subscriber_id: str = "603765850"
 
     # ------------------------------------------------------------------
     # Negocio
