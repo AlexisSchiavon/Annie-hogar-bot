@@ -78,7 +78,7 @@ class Settings(BaseSettings):
     catalog_ttl: int = 900            # 15 minutos
     rate_limit_ttl: int = 60          # 1 minuto
     rate_limit_max: int = 10          # mensajes por minuto por phone
-    debounce_ttl: int = 15            # ventana de debounce en segundos
+    debounce_ttl: int = 8             # ventana de debounce en segundos
 
     # ------------------------------------------------------------------
     # Google Drive — PDFs de catálogo por categoría (IDs de archivo)
