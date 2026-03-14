@@ -178,4 +178,8 @@ async def _compartir_catalogo(args: dict, *, lead: dict, phone: str) -> tuple[st
         return f"El catálogo de {categoria} no está disponible por el momento.", None
 
     link = f"https://drive.google.com/file/d/{file_id}/view?usp=sharing"
-    return f"Aquí tienes el portafolio de {categoria}: {link}", None
+    return (
+        f"Aquí tienes el portafolio de {categoria}:\n"
+        f"{link}\n\n"
+        f"Si necesitas más información, con gusto te ayudo. 😊"
+    ), None

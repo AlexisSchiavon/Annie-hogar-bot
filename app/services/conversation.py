@@ -42,6 +42,16 @@ class ConversationService:
                 actions=[],
             )
 
+        # Transcribir nota de voz si el mensaje es una URL de audio
+        if self._is_voice_message(message):
+            transcribed = await self._transcribe_voice(message, log)
+            if transcribed is None:
+                return ChatResponse(
+                    response_text="No pude escuchar tu nota de voz. ¿Puedes escribir tu mensaje por favor? 😊",
+                    actions=[],
+                )
+            message = f"[Nota de voz]: {transcribed}"
+
         # Cargar/crear lead en PG
         lead = await self._upsert_lead(phone, name)
 
@@ -208,3 +218,49 @@ class ConversationService:
         async with get_db_session() as session:
             msg = Conversation(lead_id=lead_id, role=role, content=content)
             session.add(msg)
+
+    _AUDIO_EXTENSIONS = (".ogg", ".mp3", ".m4a", ".opus")
+
+    def _is_voice_message(self, message: str) -> bool:
+        """Detecta si el mensaje es una URL apuntando a un archivo de audio."""
+        msg = message.strip()
+        if not msg.startswith("https://"):
+            return False
+        lower = msg.lower().split("?")[0]  # ignorar query params al chequear extensión
+        return "voice" in lower or any(lower.endswith(ext) for ext in self._AUDIO_EXTENSIONS)
+
+    async def _transcribe_voice(self, url: str, log) -> str | None:
+        """Descarga el audio desde la URL y lo transcribe con Whisper. Retorna None si falla."""
+        import io
+        import httpx
+
+        try:
+            async with httpx.AsyncClient(timeout=30) as client:
+                response = await client.get(url)
+                response.raise_for_status()
+                audio_bytes = response.content
+                content_type = response.headers.get("content-type", "")
+
+            # Verificar que sea audio si no lo detectamos por URL
+            if not content_type.startswith("audio/") and not self._is_voice_message(url):
+                log.warning("voice_non_audio_content_type", content_type=content_type)
+                return None
+
+            # Determinar nombre de archivo para que Whisper infiera el formato
+            lower_url = url.lower().split("?")[0]
+            ext = next((e for e in self._AUDIO_EXTENSIONS if lower_url.endswith(e)), ".ogg")
+            filename = f"voice{ext}"
+
+            audio_file = (filename, io.BytesIO(audio_bytes), content_type or "audio/ogg")
+            transcript = await self.openai.audio.transcriptions.create(
+                model="whisper-1",
+                file=audio_file,
+                language="es",
+            )
+            text = transcript.text.strip()
+            log.info("voice_transcribed", chars=len(text))
+            return text
+
+        except Exception as exc:
+            log.error("voice_transcription_failed", error=str(exc))
+            return None
