@@ -175,7 +175,7 @@ class ConversationService:
             truncated = truncated[1:]
         return truncated
 
-    async def _load_history_from_pg(self, lead_id: int, limit: int = 20) -> list[dict]:
+    async def _load_history_from_pg(self, lead_id: int, limit: int = 6) -> list[dict]:
         """Reconstruye el historial de conversación desde PostgreSQL cuando la sesión Redis expiró."""
         from sqlalchemy import select
         from app.db.postgres import get_db_session
