@@ -11,8 +11,10 @@ def get_tool_definitions() -> list[dict[str, Any]]:
             "function": {
                 "name": "buscar_producto",
                 "description": (
-                    "Busca productos en el catálogo de la tienda por nombre, categoría o descripción. "
-                    "Úsala cuando el cliente pregunte por muebles, colchones, precios o disponibilidad."
+                    "SIEMPRE usa esta tool cuando el cliente pregunte por cualquier "
+                    "producto, precio o disponibilidad. Incluye colchones, espaldares, "
+                    "bases de cama, salas, comedores, espejos y armarios. "
+                    "Nunca respondas sobre productos sin llamar esta tool primero."
                 ),
                 "parameters": {
                     "type": "object",
@@ -24,7 +26,7 @@ def get_tool_definitions() -> list[dict[str, Any]]:
                         "categoria": {
                             "type": "string",
                             "description": "Filtro opcional por categoría",
-                            "enum": ["Sala", "Comedor", "Alcoba", "Colchones", "Oficina", "Exterior", "Otro"],
+                            "enum": ["Colchones", "Alcoba", "Sala", "Comedor", "Espejo", "Sofá cama"],
                         },
                     },
                     "required": ["query"],
