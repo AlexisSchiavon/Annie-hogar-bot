@@ -12,6 +12,7 @@ from app.config import get_settings
 from app.db.redis_client import (
     check_rate_limit,
     get_session,
+    set_human_takeover,
     set_session,
 )
 from app.models.schemas import ChatAction, ChatResponse
@@ -40,6 +41,23 @@ class ConversationService:
             log.warning("rate_limit_exceeded")
             return ChatResponse(
                 response_text="Estoy recibiendo muchos mensajes. Por favor espera un momento.",
+                actions=[],
+            )
+
+        # Detectar imagen — activar human takeover y notificar a Javier
+        if self._is_image_message(message):
+            log.info("image_received_takeover_activated")
+            await set_human_takeover(phone, True)
+            import asyncio
+            from app.services.notifications import NotificationService
+            asyncio.ensure_future(
+                NotificationService().imagen_recibida(
+                    client_name=name,
+                    client_phone=phone,
+                )
+            )
+            return ChatResponse(
+                response_text="Vi que nos enviaste una imagen 😊 En un momento un asesor de Annie Hogar te atiende personalmente.",
                 actions=[],
             )
 
@@ -227,6 +245,17 @@ class ConversationService:
         async with get_db_session() as session:
             msg = Conversation(lead_id=lead_id, role=role, content=content)
             session.add(msg)
+
+    _IMAGE_DOMAINS = ("mmg.whatsapp.net", "pps.whatsapp.net")
+    _IMAGE_EXTENSIONS = (".jpg", ".jpeg", ".png", ".gif", ".webp")
+
+    def _is_image_message(self, message: str) -> bool:
+        """Detecta si el mensaje es una URL de imagen de WhatsApp."""
+        msg = message.strip()
+        if not msg.startswith("https://"):
+            return False
+        lower = msg.lower().split("?")[0]
+        return any(d in lower for d in self._IMAGE_DOMAINS) or any(lower.endswith(ext) for ext in self._IMAGE_EXTENSIONS)
 
     _AUDIO_EXTENSIONS = (".ogg", ".mp3", ".m4a", ".opus")
 

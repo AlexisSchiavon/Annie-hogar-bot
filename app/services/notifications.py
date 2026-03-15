@@ -27,6 +27,7 @@ NotificationEvent = Literal[
     "oportunidad_alta",
     "queja",
     "otro",
+    "imagen_recibida",
 ]
 
 
@@ -160,6 +161,87 @@ class NotificationService:
         }
         logger.info("notification_built", notification_event=motivo, client=client_phone)
         return payload
+
+    # ------------------------------------------------------------------
+    # Imagen recibida: notifica a Javier directamente vía ManyChat
+    # ------------------------------------------------------------------
+
+    async def imagen_recibida(
+        self,
+        *,
+        client_name: str | None,
+        client_phone: str,
+    ) -> bool:
+        """
+        Notifica a Javier directamente vía ManyChat cuando un cliente envía una imagen.
+        1. Actualiza el custom field notificacion_cita de Javier
+        2. Envía la plantilla cliente_agenda (fallback: recordatorio_cita)
+        """
+        import httpx
+
+        subscriber_id = settings.manychat_javier_subscriber_id
+        nombre = client_name or "Cliente"
+        field_value = f"📸 {nombre} ({client_phone}) envió una imagen y espera atención personal."
+
+        headers = {
+            "Authorization": f"Bearer {settings.manychat_api_key}",
+            "Content-Type": "application/json",
+        }
+
+        async with httpx.AsyncClient(timeout=15) as client:
+            # 1. Actualizar custom field notificacion_cita de Javier
+            try:
+                resp = await client.post(
+                    "https://api.manychat.com/fb/subscriber/setCustomFieldByName",
+                    json={
+                        "subscriber_id": subscriber_id,
+                        "field_name": "notificacion_cita",
+                        "field_value": field_value,
+                    },
+                    headers=headers,
+                )
+                resp.raise_for_status()
+                logger.info("imagen_recibida_field_set", subscriber_id=subscriber_id)
+            except Exception as exc:
+                logger.error("imagen_recibida_field_error", error=str(exc))
+                return False
+
+            # 2. Enviar plantilla — intenta cliente_agenda, fallback recordatorio_cita
+            for template_name in ("cliente_agenda", "recordatorio_cita"):
+                try:
+                    resp = await client.post(
+                        "https://api.manychat.com/fb/sending/sendContent",
+                        json={
+                            "subscriber_id": subscriber_id,
+                            "data": {
+                                "version": "v2",
+                                "content": {
+                                    "type": "whatsapp",
+                                    "messages": [
+                                        {
+                                            "type": "template",
+                                            "template_name": template_name,
+                                            "language": {"code": "es"},
+                                            "components": [],
+                                        }
+                                    ],
+                                },
+                            },
+                        },
+                        headers=headers,
+                    )
+                    resp.raise_for_status()
+                    logger.info("imagen_recibida_template_sent", template=template_name)
+                    return True
+                except Exception as exc:
+                    logger.warning(
+                        "imagen_recibida_template_failed",
+                        template=template_name,
+                        error=str(exc),
+                    )
+
+        logger.error("imagen_recibida_all_templates_failed", client_phone=client_phone)
+        return False
 
     # ------------------------------------------------------------------
     # Dispatch: envía el payload al webhook de n8n
