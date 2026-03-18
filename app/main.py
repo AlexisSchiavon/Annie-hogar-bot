@@ -13,7 +13,9 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 
 import structlog
-from fastapi import Depends, FastAPI, Query
+from fastapi import Depends, FastAPI, Query, Request
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
@@ -220,6 +222,26 @@ app.add_middleware(
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
+
+# ------------------------------------------------------------------
+# Exception handler: loguear body raw en errores 422
+# ------------------------------------------------------------------
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    try:
+        body_bytes = await request.body()
+        body_str = body_bytes.decode("utf-8", errors="replace")
+    except Exception:
+        body_str = "<no se pudo leer el body>"
+    logger.warning(
+        "chat_validation_error",
+        path=str(request.url.path),
+        errors=exc.errors(),
+        raw_body=body_str,
+    )
+    return JSONResponse(status_code=422, content={"detail": exc.errors()})
+
 @app.get("/demo")
 async def demo():
     return FileResponse("static/index.html")
@@ -284,7 +306,7 @@ async def health_check():
     dependencies=[Depends(verify_api_key)],
     tags=["Conversación"],
 )
-async def chat(body: ChatRequest) -> ChatResponse | ChatAckResponse:
+async def chat(request: Request, body: ChatRequest) -> ChatResponse | ChatAckResponse:
     """
     Endpoint principal de conversación.
 
@@ -293,6 +315,11 @@ async def chat(body: ChatRequest) -> ChatResponse | ChatAckResponse:
       se envía a `N8N_CHAT_RESPONSE_WEBHOOK` cuando expira la ventana.
     - **instant=true**: procesa de inmediato y retorna la respuesta (demo/testing).
     """
+    try:
+        body_bytes = await request.body()
+        logger.info("chat_raw_body", body=body_bytes.decode("utf-8", errors="replace"))
+    except Exception:
+        pass
     log = logger.bind(phone=body.phone, name=body.name)
 
     # Verificar human takeover (en ambos modos)
