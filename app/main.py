@@ -320,10 +320,25 @@ async def chat(request: Request, body: ChatRequest) -> ChatResponse | ChatAckRes
         logger.info("chat_raw_body", body=body_bytes.decode("utf-8", errors="replace"))
     except Exception:
         pass
-    log = logger.bind(phone=body.phone, name=body.name)
+
+    # Resolver phone: si viene None o contiene "{{" (template ManyChat sin valor),
+    # usar subscriber_id como identificador
+    if body.phone and "{{" not in body.phone:
+        phone = body.phone
+    elif body.subscriber_id:
+        phone = f"mc_{body.subscriber_id}"
+    else:
+        phone = "mc_unknown"
+
+    # Resolver name: si viene None, "." o contiene "{{" (template sin valor), usar "Cliente"
+    name = body.name
+    if not name or name.strip() == "." or "{{" in name:
+        name = "Cliente"
+
+    log = logger.bind(phone=phone, name=name)
 
     # Verificar human takeover (en ambos modos)
-    takeover_active = await get_human_takeover(body.phone)
+    takeover_active = await get_human_takeover(phone)
     if takeover_active:
         log.info("chat_skipped_human_takeover")
         if body.instant:
@@ -336,8 +351,8 @@ async def chat(request: Request, body: ChatRequest) -> ChatResponse | ChatAckRes
         from app.services.conversation import ConversationService
         service = ConversationService()
         result = await service.process_message(
-            phone=body.phone,
-            name=body.name,
+            phone=phone,
+            name=name,
             message=body.message,
             timestamp=body.timestamp or datetime.now(timezone.utc),
             subscriber_id=body.subscriber_id,
@@ -348,9 +363,9 @@ async def chat(request: Request, body: ChatRequest) -> ChatResponse | ChatAckRes
     # ── Modo debounce: encolar y responder inmediatamente ─────────────────
     log.info("chat_queued", message_length=len(body.message))
     await append_pending_message(
-        phone=body.phone,
+        phone=phone,
         message=body.message,
-        name=body.name,
+        name=name,
         debounce_ttl=settings.debounce_ttl,
         subscriber_id=body.subscriber_id,
     )

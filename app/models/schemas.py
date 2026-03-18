@@ -27,7 +27,7 @@ class ChatAction(BaseModel):
 
 
 class ChatRequest(BaseModel):
-    phone: str = Field(..., min_length=7, max_length=20, description="Número de teléfono E.164")
+    phone: str | None = Field(None, max_length=50, description="Número de teléfono E.164 (opcional)")
     name: str | None = Field(None, max_length=100)
     message: str = Field(..., min_length=1, max_length=4096)
     timestamp: datetime | None = Field(None)
@@ -36,14 +36,6 @@ class ChatRequest(BaseModel):
         False,
         description="Si True, salta el debounce y procesa el mensaje inmediatamente (útil para demos).",
     )
-
-    @field_validator("phone")
-    @classmethod
-    def sanitize_phone(cls, v: str) -> str:
-        cleaned = "".join(c for c in v if c.isdigit())
-        if len(cleaned) < 7:
-            raise ValueError("Número de teléfono inválido")
-        return cleaned
 
 
 class ChatResponse(BaseModel):
