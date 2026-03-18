@@ -64,6 +64,73 @@ class NotificationService:
         product_interest: str | None = None,
         appointment_id: int | None = None,
     ) -> dict[str, Any]:
+        import httpx
+
+        subscriber_id = settings.manychat_javier_subscriber_id
+        nombre = client_name or "Cliente"
+        fecha_str = scheduled_date.strftime("%d/%m/%Y")
+        hora_str = scheduled_time.strftime("%H:%M")
+        producto_str = product_interest or "No especificado"
+
+        field_value = (
+            f"📅 Nueva cita agendada\n"
+            f"Cliente: {nombre}\n"
+            f"Teléfono: {client_phone}\n"
+            f"Producto: {producto_str}\n"
+            f"Fecha: {fecha_str}\n"
+            f"Hora: {hora_str}"
+        )
+
+        headers = {
+            "Authorization": f"Bearer {settings.manychat_api_key}",
+            "Content-Type": "application/json",
+        }
+
+        async with httpx.AsyncClient(timeout=15) as http:
+            # 1. Actualizar custom field notificacion_cita de Javier
+            try:
+                resp = await http.post(
+                    "https://api.manychat.com/fb/subscriber/setCustomFieldByName",
+                    json={
+                        "subscriber_id": subscriber_id,
+                        "field_name": "notificacion_cita",
+                        "field_value": field_value,
+                    },
+                    headers=headers,
+                )
+                resp.raise_for_status()
+                logger.info("new_appointment_field_set", subscriber_id=subscriber_id)
+            except Exception as exc:
+                logger.error("new_appointment_field_error", error=str(exc))
+
+            # 2. Enviar plantilla cliente_agenda a Javier
+            try:
+                resp = await http.post(
+                    "https://api.manychat.com/fb/sending/sendContent",
+                    json={
+                        "subscriber_id": subscriber_id,
+                        "data": {
+                            "version": "v2",
+                            "content": {
+                                "type": "whatsapp",
+                                "messages": [
+                                    {
+                                        "type": "template",
+                                        "template_name": "cliente_agenda",
+                                        "language": {"code": "es"},
+                                        "components": [],
+                                    }
+                                ],
+                            },
+                        },
+                    },
+                    headers=headers,
+                )
+                resp.raise_for_status()
+                logger.info("new_appointment_template_sent", template="cliente_agenda")
+            except Exception as exc:
+                logger.error("new_appointment_template_error", error=str(exc))
+
         message = javier_alert_new_appointment(
             client_name=client_name,
             client_phone=client_phone,

@@ -89,6 +89,19 @@ async def _agendar_cita(args: dict, *, lead: dict, phone: str) -> tuple[str, Cha
 
     logger.info("appointment_created", lead_id=lead["id"], date=str(scheduled_date), appt_id=appt_id)
 
+    import asyncio
+    from app.services.notifications import NotificationService
+    asyncio.ensure_future(
+        NotificationService().new_appointment(
+            client_name=lead.get("name"),
+            client_phone=phone,
+            scheduled_date=scheduled_date,
+            scheduled_time=scheduled_time,
+            product_interest=args.get("producto_interes"),
+            appointment_id=appt_id,
+        )
+    )
+
     action = ChatAction(
         type="notify_javier",
         data={
