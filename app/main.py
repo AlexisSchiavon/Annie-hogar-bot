@@ -42,6 +42,7 @@ from app.models.schemas import (
     ChatResponse,
     FollowUpsResponse,
     HealthResponse,
+    LeadsExportResponse,
     RecentLeadsResponse,
     RemindersResponse,
     SummaryResponse,
@@ -533,6 +534,40 @@ async def recent_leads(limit: int = Query(default=10, ge=1, le=100)):
         leads=[LeadOut.model_validate(lead) for lead in leads],
         count=len(leads),
     )
+
+
+# ------------------------------------------------------------------
+# POST /leads/export-sheets
+# ------------------------------------------------------------------
+
+@app.post(
+    "/leads/export-sheets",
+    response_model=LeadsExportResponse,
+    dependencies=[Depends(verify_api_key)],
+    tags=["Leads"],
+)
+async def export_leads_to_sheets():
+    """
+    Exporta todos los leads a la hoja 'Leads' del Google Sheet.
+    Solo agrega leads cuyo teléfono no exista ya en el Sheet.
+    Útil para llamar desde el cron diario de n8n.
+    """
+    from sqlalchemy import select
+    from app.db.postgres import get_db_session
+    from app.models.database import Lead
+    from app.services.sheets_export import LeadsExportService
+
+    async with get_db_session() as session:
+        result = await session.execute(
+            select(Lead.phone, Lead.name, Lead.created_at).order_by(Lead.created_at)
+        )
+        rows = result.all()
+
+    leads = [{"phone": r.phone, "name": r.name, "created_at": r.created_at} for r in rows]
+    service = LeadsExportService()
+    stats = await service.export(leads)
+    logger.info("leads_export_done", **stats)
+    return LeadsExportResponse(ok=True, **stats)
 
 
 # Importación diferida para evitar error de nombre

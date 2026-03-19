@@ -182,3 +182,10 @@ class LeadOut(BaseModel):
 class RecentLeadsResponse(BaseModel):
     leads: list[LeadOut]
     count: int
+
+
+class LeadsExportResponse(BaseModel):
+    ok: bool
+    total_consultados: int
+    nuevos_agregados: int
+    existentes_omitidos: int
