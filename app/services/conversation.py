@@ -71,6 +71,16 @@ class ConversationService:
                 )
             message = f"[Nota de voz]: {transcribed}"
 
+        # Si el phone es mc_{subscriber_id}, intentar resolver el teléfono real desde ManyChat
+        if phone.startswith("mc_") and subscriber_id:
+            real_phone, real_name = await self._resolve_phone_from_manychat(subscriber_id, log)
+            if real_phone:
+                await self._migrate_mc_lead(phone, real_phone, log)
+                phone = real_phone
+                log = logger.bind(phone=phone)
+                if real_name and not name:
+                    name = real_name
+
         # Cargar/crear lead en PG
         lead = await self._upsert_lead(phone, name, subscriber_id)
 
@@ -245,6 +255,53 @@ class ConversationService:
         async with get_db_session() as session:
             msg = Conversation(lead_id=lead_id, role=role, content=content)
             session.add(msg)
+
+    async def _resolve_phone_from_manychat(
+        self, subscriber_id: str, log
+    ) -> tuple[str | None, str | None]:
+        """Consulta la API de ManyChat para obtener el teléfono real de un subscriber.
+        Retorna (phone, name) o (None, None) si la llamada falla o el teléfono no está disponible.
+        """
+        import httpx
+
+        try:
+            async with httpx.AsyncClient(timeout=5) as client:
+                resp = await client.get(
+                    "https://api.manychat.com/fb/subscriber/getInfo",
+                    params={"subscriber_id": subscriber_id},
+                    headers={"Authorization": f"Bearer {settings.manychat_api_key}"},
+                )
+                resp.raise_for_status()
+                data = resp.json().get("data", {})
+                phone = data.get("phone") or None
+                name = data.get("name") or None
+                if phone:
+                    log.info("manychat_phone_resolved", subscriber_id=subscriber_id, phone=phone)
+                else:
+                    log.info("manychat_phone_not_available", subscriber_id=subscriber_id)
+                return phone, name
+        except Exception as exc:
+            log.warning("manychat_phone_resolve_failed", subscriber_id=subscriber_id, error=str(exc))
+            return None, None
+
+    async def _migrate_mc_lead(self, mc_phone: str, real_phone: str, log) -> None:
+        """Si existe un lead con phone mc_XXX, actualiza su phone al teléfono real.
+        Esto preserva el historial de conversación del lead ya creado.
+        """
+        from sqlalchemy import select
+        from app.db.postgres import get_db_session
+        from app.models.database import Lead
+
+        try:
+            async with get_db_session() as session:
+                result = await session.execute(select(Lead).where(Lead.phone == mc_phone))
+                lead = result.scalar_one_or_none()
+                if lead:
+                    lead.phone = real_phone
+                    log.info("mc_lead_migrated", from_phone=mc_phone, to_phone=real_phone)
+        except Exception as exc:
+            # Puede fallar si ya existe un lead con real_phone (unique constraint) — no es crítico
+            log.warning("mc_lead_migrate_failed", mc_phone=mc_phone, real_phone=real_phone, error=str(exc))
 
     _IMAGE_DOMAINS = ("mmg.whatsapp.net", "pps.whatsapp.net")
     _IMAGE_EXTENSIONS = (".jpg", ".jpeg", ".png", ".gif", ".webp")
