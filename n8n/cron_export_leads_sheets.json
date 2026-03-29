@@ -1,0 +1,118 @@
+{
+  "name": "WF8 - Cron Export Leads a Google Sheets (8am Colombia)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 13 * * *"
+            }
+          ]
+        }
+      },
+      "id": "wf8-0008-0000-0000-000000000001",
+      "name": "Diario 13:00 UTC (8am Colombia)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [0, 0]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://annie-hogar-fastapi.ap240g.easypanel.host/leads/export-sheets",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-API-Key",
+              "value": "annie-hogar-secret-2026"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "wf8-0008-0000-0000-000000000002",
+      "name": "POST /leads/export-sheets",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [260, 0]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "cond-export-ok",
+              "leftValue": "={{ $json.ok }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "wf8-0008-0000-0000-000000000003",
+      "name": "Export exitoso?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [520, 0]
+    },
+    {
+      "parameters": {},
+      "id": "wf8-0008-0000-0000-000000000004",
+      "name": "OK (ignorar)",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [780, -120]
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.item.json;\nconsole.error('[WF8] Export leads FALLIDO:', JSON.stringify(body));\nreturn [{ json: { error: true, response: body } }];"
+      },
+      "id": "wf8-0008-0000-0000-000000000005",
+      "name": "Log Error",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [780, 120]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Diario 13:00 UTC (8am Colombia)": {
+      "main": [
+        [{ "node": "POST /leads/export-sheets", "type": "main", "index": 0 }]
+      ]
+    },
+    "POST /leads/export-sheets": {
+      "main": [
+        [{ "node": "Export exitoso?", "type": "main", "index": 0 }]
+      ]
+    },
+    "Export exitoso?": {
+      "main": [
+        [{ "node": "OK (ignorar)", "type": "main", "index": 0 }],
+        [{ "node": "Log Error", "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "versionId": "annie-wf-008",
+  "id": "annie-wf-008",
+  "tags": [{ "name": "annie-hogar" }]
+}
