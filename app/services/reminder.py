@@ -19,7 +19,7 @@ from app.models.schemas import ReminderItem
 logger = structlog.get_logger(__name__)
 
 _MANYCHAT_SET_FIELD_URL = "https://api.manychat.com/fb/subscriber/setCustomFieldByName"
-_MANYCHAT_SEND_CONTENT_URL = "https://api.manychat.com/fb/sending/sendContent"
+_MANYCHAT_SEND_FLOW_URL = "https://api.manychat.com/fb/sending/sendFlow"
 
 
 class ReminderService:
@@ -115,30 +115,18 @@ class ReminderService:
                 logger.error("reminder_field_error", subscriber_id=subscriber_id, error=str(exc))
                 return False
 
-            # 2. Enviar plantilla
+            # 2. Enviar flow
             try:
                 resp = await client.post(
-                    _MANYCHAT_SEND_CONTENT_URL,
+                    _MANYCHAT_SEND_FLOW_URL,
                     json={
                         "subscriber_id": subscriber_id,
-                        "data": {
-                            "version": "v2",
-                            "content": {
-                                "type": "whatsapp",
-                                "messages": [
-                                    {
-                                        "type": "template",
-                                        "template_name": "recordatorio_cita",
-                                        "language": {"code": "es_CO"},
-                                    }
-                                ],
-                            },
-                        },
+                        "flow_ns": "content20260403131712_024878",
                     },
                     headers=headers,
                 )
                 resp.raise_for_status()
-                logger.info("reminder_template_sent", subscriber_id=subscriber_id)
+                logger.info("reminder_flow_sent", subscriber_id=subscriber_id)
             except Exception as exc:
                 response_body = ""
                 try:
@@ -146,7 +134,7 @@ class ReminderService:
                 except Exception:
                     pass
                 logger.error(
-                    "reminder_template_error",
+                    "reminder_flow_error",
                     subscriber_id=subscriber_id,
                     error=str(exc),
                     response_body=response_body,
