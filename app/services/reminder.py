@@ -134,7 +134,6 @@ class ReminderService:
                                 ],
                             },
                         },
-                        "message_tag": "CONFIRMED_EVENT_UPDATE",
                     },
                     headers=headers,
                 )
