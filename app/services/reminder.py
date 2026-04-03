@@ -141,7 +141,17 @@ class ReminderService:
                 resp.raise_for_status()
                 logger.info("reminder_template_sent", subscriber_id=subscriber_id)
             except Exception as exc:
-                logger.error("reminder_template_error", subscriber_id=subscriber_id, error=str(exc))
+                response_body = ""
+                try:
+                    response_body = resp.text
+                except Exception:
+                    pass
+                logger.error(
+                    "reminder_template_error",
+                    subscriber_id=subscriber_id,
+                    error=str(exc),
+                    response_body=response_body,
+                )
                 return False
 
         return True
