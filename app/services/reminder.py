@@ -129,12 +129,12 @@ class ReminderService:
                                     {
                                         "type": "template",
                                         "template_name": "recordatorio_cita",
-                                        "language": {"code": "es"},
-                                        "components": [],
+                                        "language": {"code": "es_CO"},
                                     }
                                 ],
                             },
                         },
+                        "message_tag": "CONFIRMED_EVENT_UPDATE",
                     },
                     headers=headers,
                 )
